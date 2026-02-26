@@ -116,6 +116,9 @@
       min-width: 140px;
       overflow: hidden;
       box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+      background: #ffffff;
+      color: #111827;
+      border-color: rgba(17, 24, 39, 0.15);
     }
     .gantt-bar-compact {
       height: 68px;
@@ -126,7 +129,7 @@
       font-size: 12px;
       font-weight: 800;
       line-height: 1.1;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+      text-shadow: none;
     }
     .gantt-bar-title-clamp {
       display: -webkit-box;
@@ -146,7 +149,13 @@
       font-size: 9px;
       font-weight: 700;
       opacity: 0.95;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      text-shadow: none;
+    }
+
+    .flag-filled svg,
+    .flag-filled svg * {
+      fill: currentColor !important;
+      stroke: currentColor !important;
     }
     .gantt-bar-compact .gantt-bar-title {
       font-size: 11px;
@@ -460,6 +469,7 @@
     <div class="p-6">
       <!-- ✅ agora também permite registar datas do projeto -->
       <form id="projectForm" class="flex flex-col gap-3 mb-6">
+        <input type="hidden" id="pId">
         <input id="pName" required placeholder="Nome do Projeto" class="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -471,7 +481,10 @@
             <input id="pEnd" type="date" class="w-full mt-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
           </div>
         </div>
-        <button type="submit" class="gradient-btn px-4 py-3 rounded-xl font-bold">Adicionar</button>
+        <div class="flex gap-2">
+          <button id="projectSubmitBtn" type="submit" class="gradient-btn px-4 py-3 rounded-xl font-bold flex-1">Adicionar</button>
+          <button id="projectCancelEditBtn" type="button" onclick="resetProjectForm()" class="px-4 py-3 rounded-xl font-bold border border-white/15 bg-white/5 hidden">Cancelar</button>
+        </div>
       </form>
       <div id="projectList" class="space-y-2 max-h-64 overflow-y-auto scroll-hidden"></div>
     </div>
@@ -848,16 +861,61 @@
     // Lanes por projeto
     finalProjects.forEach((projName, laneIndex) => {
       const proj = activeProjects.find(p => clean(p.projeto).toLowerCase() === clean(projName).toLowerCase());
+      const pTasks = localTasks.filter(t => clean(t.projeto).toLowerCase() === clean(projName).toLowerCase());
+
+      const laneTasks = pTasks.map(task => {
+        const start = parseDate_(task.inicio) || parseDate_(task.datacriada) || parseDate_(task.prazo);
+        const end = parseDate_(task.prazo) || start;
+        if (!start || !end) return null;
+        const leftDays = Math.max(0, diffDays_(globalStart, start));
+        const durDays = Math.max(1, diffDays_(start, end) + 1);
+        const barWidth = Math.max(140, durDays * PX_PER_DAY);
+        const leftPx = leftDays * PX_PER_DAY;
+        const rightPx = leftPx + barWidth;
+
+        return { task, start, end, durDays, barWidth, leftPx, rightPx, row: 0 };
+      }).filter(Boolean);
+
+      laneTasks.sort((a, b) => {
+        const diffLeft = a.leftPx - b.leftPx;
+        if (diffLeft !== 0) return diffLeft;
+        return a.rightPx - b.rightPx;
+      });
+
+      const rowLastRightPx = [];
+      const rowSpacingPx = 10;
+      laneTasks.forEach(item => {
+        let assignedRow = -1;
+        for (let rowIndex = 0; rowIndex < rowLastRightPx.length; rowIndex++) {
+          const lastRight = rowLastRightPx[rowIndex];
+          if (item.leftPx >= (lastRight + rowSpacingPx)) {
+            assignedRow = rowIndex;
+            break;
+          }
+        }
+
+        if (assignedRow === -1) assignedRow = rowLastRightPx.length;
+        rowLastRightPx[assignedRow] = item.rightPx;
+        item.row = assignedRow;
+      });
+
+      const rowCount = Math.max(1, rowLastRightPx.length);
+      const laneTop = 30;
+      const laneRowHeight = 74;
+      const laneRowGap = 10;
+      const laneBottom = 16;
+      const laneHeight = Math.max(120, laneTop + (rowCount * laneRowHeight) + ((rowCount - 1) * laneRowGap) + laneBottom);
 
       // label com datas (se existirem)
       const pS = proj ? parseDate_(proj.datainicio) : null;
       const pE = proj ? parseDate_(proj.datafim) : null;
       const label = document.createElement('div');
       label.className = 'gantt-lane-label';
+      label.style.height = laneHeight + 'px';
       label.innerHTML = `
         <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
         <div class="h-1 w-8 bg-white/20 rounded"></div>
-        <div class="mt-2 text-[10px] font-bold text-white/35">
+        <div class="mt-2 text-[10px] font-bold text-white/100">
           ${pS ? pS.toLocaleDateString('pt-PT') : '—'} → ${pE ? pE.toLocaleDateString('pt-PT') : '—'}
         </div>
       `;
@@ -866,9 +924,8 @@
       const lane = document.createElement('div');
       lane.className = 'gantt-lane-content';
       lane.style.width = totalWidth + 'px';
+      lane.style.height = laneHeight + 'px';
       lane.style.background = laneIndex % 2 === 0 ? 'rgba(87,87,87,0.8)' : 'rgba(255,255,255,0.03)';
-
-      const pTasks = localTasks.filter(t => clean(t.projeto).toLowerCase() === clean(projName).toLowerCase());
 
       // Span total do projeto: usa Data Início/Fim do projeto; se faltar, calcula por tarefas
       let spanStart = pS;
@@ -929,32 +986,25 @@
       });
 
       // Barras das tarefas
-      pTasks.forEach(task => {
-        const start = parseDate_(task.inicio) || parseDate_(task.datacriada) || parseDate_(task.prazo);
-        const end = parseDate_(task.prazo) || start;
-        if (!start || !end) return;
+      laneTasks.forEach(({ task, start, end, row, durDays, barWidth, leftPx }) => {
 
         const status = (task.status || '').toLowerCase();
-        const isDone = status.includes('concluido') || status.includes('concluído');
-        const isWorking = status.includes('curso');
 
-        const leftDays = Math.max(0, diffDays_(globalStart, start));
-        const durDays = Math.max(1, diffDays_(start, end) + 1);
-        const barWidth = Math.max(140, durDays * PX_PER_DAY);
         const isCompact = barWidth < 190;
         const responsible = clean(task.responsavel) || '---';
         const compactResponsible = responsible.split(' ')[0] || responsible;
 
         const bar = document.createElement('div');
-        bar.className = `gantt-bar ${isDone ? 'bg-green-600 border-green-400' : (isWorking ? 'bg-[#004aad] border-[#51b8ea]' : 'bg-white/5 border-white/10 text-white/70')}`;
+        bar.className = 'gantt-bar';
         if (isCompact) bar.classList.add('gantt-bar-compact');
-        bar.style.left = (leftDays * PX_PER_DAY) + 'px';
+        bar.style.left = leftPx + 'px';
         bar.style.width = barWidth + 'px';
+        bar.style.top = (laneTop + row * (laneRowHeight + laneRowGap)) + 'px';
 
         bar.innerHTML = `
           <div class="flex justify-between items-start">
             <span class="gantt-bar-title gantt-bar-title-clamp w-[82%]">${clean(task.titulo) || '---'}</span>
-            ${clean(task.milestone) ? `<i data-lucide="flag" size="10" class="text-amber-400"></i>` : ''}
+            ${clean(task.milestone) ? `<i data-lucide="flag" size="10" class="text-amber-500 flag-filled"></i>` : ''}
           </div>
           <div class="flex justify-between items-center mt-2 gap-2">
             <span class="gantt-bar-meta uppercase truncate">${isCompact ? compactResponsible : responsible}</span>
@@ -1079,6 +1129,7 @@
             ${archived ? '<span class="text-[10px] text-amber-300 font-black uppercase tracking-wide mt-1">Arquivado</span>' : ''}
           </div>
           <div class="flex items-center gap-2">
+            <button type="button" onclick="openProjectEditModal('${clean(p.id)}')" class="text-[10px] font-black px-2 py-1 rounded-lg bg-[#51b8ea]/20 text-[#51b8ea]">Editar</button>
             <button type="button" onclick="toggleProjectArchive('${clean(p.id)}')" class="text-[10px] font-black px-2 py-1 rounded-lg ${archived ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${toggleLabel}</button>
             <i data-lucide="anchor" size="14"></i>
           </div>
@@ -1141,8 +1192,10 @@
   }
 
   // ===== Submits =====
-  document.getElementById('taskForm').onsubmit = (e) => {
+  document.getElementById('taskForm').onsubmit = async (e) => {
     e.preventDefault();
+
+    toggleModal('taskModal', false);
 
     const isEdit = !!document.getElementById('fId').value;
     const id = document.getElementById('fId').value || Date.now().toString();
@@ -1150,29 +1203,42 @@
     // ✅ coluna B "Projeto" (Tarefas) é alimentada pelo dropdown -> Nome Projeto
     const selectedProject = document.getElementById('fProject').value;
 
+    const startDateIso = document.getElementById('fStart').value;
+    const startDatePt = startDateIso ? parseDate_(startDateIso).toLocaleDateString('pt-PT') : '';
+
     const data = {
       id,
       projeto: selectedProject,
       tarefa: document.getElementById('fTitle').value,
-      responsavel: document.getElementById('fUser').value,
-      prioridade: document.getElementById('fPriority').value,
-      milestone: document.getElementById('fMilestone').value,
-      milestoneprazo: document.getElementById('fMilestoneDate').value,
-      inicio: document.getElementById('fStart').value,
-      prazo: document.getElementById('fDeadline').value,
       status: document.getElementById('fStatus').value || 'A Fazer',
-      datacriada: new Date().toLocaleDateString('pt-PT')
+      prioridade: document.getElementById('fPriority').value,
+      responsavel: document.getElementById('fUser').value,
+      datainicio: startDatePt,
+      datadeinicio: startDatePt,
+      prazo: document.getElementById('fDeadline').value,
+      milestone: document.getElementById('fMilestone').value,
+      milestoneprazo: document.getElementById('fMilestoneDate').value
     };
 
-    const idx = localTasks.findIndex(x => x.id == id);
-    const norm = normalize([data], 'tarefas')[0];
-    if (idx > -1) localTasks[idx] = norm;
-    else localTasks.push(norm);
+    const result = await sendToCloud(isEdit ? 'update' : 'add', data, id, 'Tarefas');
+    if (!result.ok) {
+      alert(`Não foi possível guardar no Sheets: ${result.error || 'erro desconhecido'}`);
+      return;
+    }
 
-    renderAll();
-    toggleModal('taskModal', false);
+    await fetchData();
 
-    sendToCloud(isEdit ? 'update' : 'add', data, id, 'Tarefas');
+    const savedTask = localTasks.find(x => clean(x.id) === clean(id));
+    if (!savedTask) {
+      alert('Tarefa guardada, mas não foi possível confirmar a leitura após sincronização.');
+      return;
+    }
+
+    const savedStartIso = savedTask.inicio ? toISODate_(savedTask.inicio) : '';
+    if (startDateIso && savedStartIso !== startDateIso) {
+      alert(`A Data Início não foi atualizada no Sheets. Esperado: ${startDateIso}, recebido: ${savedStartIso || 'vazio'}.`);
+      return;
+    }
   };
 
   // ✅ Projetos guardam no separador "Projetos":
@@ -1180,46 +1246,79 @@
   document.getElementById('projectForm').onsubmit = (e) => {
     e.preventDefault();
 
+    const projectId = clean(document.getElementById('pId').value);
+    const isEdit = !!projectId;
     const nomeProjeto = clean(document.getElementById('pName').value);
     if (!nomeProjeto) return;
 
-    const exists = localProjects.some(p => clean(p.projeto).toLowerCase() === nomeProjeto.toLowerCase());
+    const exists = localProjects.some(p => clean(p.projeto).toLowerCase() === nomeProjeto.toLowerCase() && clean(p.id) !== projectId);
     if (exists) {
-      document.getElementById('pName').value = '';
-      document.getElementById('pStart').value = '';
-      document.getElementById('pEnd').value = '';
-      renderAll();
+      alert('Já existe um projeto com esse nome.');
       return;
     }
 
-    const pid = Date.now().toString();
+    const pid = projectId || Date.now().toString();
     const pStart = document.getElementById('pStart').value;
     const pEnd = document.getElementById('pEnd').value;
 
-    // local
-    localProjects.push({
-      id: pid,
-      projeto: nomeProjeto,
-      nome: nomeProjeto,
-      datainicio: pStart,
-      datafim: pEnd,
-      status: 'Ativo'
-    });
+    if (isEdit) {
+      const idx = localProjects.findIndex(p => clean(p.id) === pid);
+      if (idx > -1) {
+        localProjects[idx] = {
+          ...localProjects[idx],
+          id: pid,
+          projeto: nomeProjeto,
+          nome: nomeProjeto,
+          datainicio: pStart,
+          datafim: pEnd
+        };
+      }
+    } else {
+      localProjects.push({
+        id: pid,
+        projeto: nomeProjeto,
+        nome: nomeProjeto,
+        datainicio: pStart,
+        datafim: pEnd,
+        status: 'Ativo'
+      });
+    }
 
     renderAll();
 
     // cloud (coluna B -> "Nome Projeto")
-    sendToCloud('add', {
+    sendToCloud(isEdit ? 'update' : 'add', {
       "Nome Projeto": nomeProjeto,
       "Data Início": pStart,
       "Data Fim": pEnd,
-      "Status": 'Ativo'
+      "Status": isEdit
+        ? (isProjectArchived(localProjects.find(p => clean(p.id) === pid)) ? 'Arquivado' : 'Ativo')
+        : 'Ativo'
     }, pid, 'Projetos');
 
+    resetProjectForm();
+  };
+
+  function openProjectEditModal(projectId) {
+    const project = localProjects.find(p => clean(p.id) === clean(projectId));
+    if (!project) return;
+
+    document.getElementById('pId').value = clean(project.id);
+    document.getElementById('pName').value = clean(project.projeto || project.nome);
+    document.getElementById('pStart').value = project.datainicio ? toISODate_(project.datainicio) : '';
+    document.getElementById('pEnd').value = project.datafim ? toISODate_(project.datafim) : '';
+    document.getElementById('projectSubmitBtn').innerText = 'Guardar Alterações';
+    document.getElementById('projectCancelEditBtn').classList.remove('hidden');
+  }
+
+  function resetProjectForm() {
+    document.getElementById('pId').value = '';
     document.getElementById('pName').value = '';
     document.getElementById('pStart').value = '';
     document.getElementById('pEnd').value = '';
-  };
+    document.getElementById('projectSubmitBtn').innerText = 'Adicionar';
+    document.getElementById('projectCancelEditBtn').classList.add('hidden');
+  }
 
   document.getElementById('teamForm').onsubmit = (e) => {
     e.preventDefault();
@@ -1272,17 +1371,31 @@
   // ===== Cloud =====
   async function sendToCloud(action, data, id, sheet) {
     try {
-      await fetch(SCRIPT_URL, {
+      const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        mode: 'cors',
         body: JSON.stringify({ action, sheet, id, data })
       });
-    } catch (e) {}
+
+      const text = await response.text();
+      let payload = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch (err) {
+        payload = { ok: response.ok, raw: text };
+      }
+
+      if (payload && typeof payload.ok === 'boolean') return payload;
+      return { ok: response.ok, ...payload };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
   }
 
   // ===== UI =====
   function toggleModal(id, show) {
     document.getElementById(id).style.display = show ? 'flex' : 'none';
+    if (id === 'projectModal' && !show) resetProjectForm();
   }
 
   function updateStatus(text, colour) {
