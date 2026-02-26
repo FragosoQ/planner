@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestor de Projetos Ágil</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0a0a0a;
+      background-image: radial-gradient(circle at 50% 50%, #1a3a5a 0%, #0a0a0a 100%);
+      min-height: 100vh;
+    }
+
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .task-card {
+      background: white;
+      border-left: 4px solid #004aad;
+      color: #1a1a1a;
+      transition: all 0.2s ease;
+    }
+    .task-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+
+    .gradient-btn {
+      background: linear-gradient(135deg, #004aad 0%, #51b8ea 100%);
+      transition: transform 0.2s;
+    }
+    .gradient-btn:active { transform: scale(0.95); }
+
+    .gantt-wrapper {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      border-radius: 1.5rem;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+      min-height: 550px;
+    }
+    .gantt-sidebar {
+      background: rgba(255,255,255,0.05);
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    .gantt-sidebar-header {
+      height: var(--gantt-timeline-height, 42px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+    }
+    .gantt-lane-label {
+      height: 120px;
+      padding: 1.25rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: rgba(255,255,255,0.92);
+    }
+
+    .gantt-main {
+      background: rgba(0,0,0,0.2);
+      overflow-x: auto;
+      overflow-y: hidden;
+      position: relative;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(81,184,234,0.75) rgba(255,255,255,0.08);
+    }
+    .gantt-main::-webkit-scrollbar {
+      height: 10px;
+    }
+    .gantt-main::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+    }
+    .gantt-main::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, rgba(0,74,173,0.9) 0%, rgba(81,184,234,0.9) 100%);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .gantt-main::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, rgba(0,74,173,1) 0%, rgba(81,184,234,1) 100%);
+    }
+
+    .gantt-lane-content {
+      height: 120px;
+      border-bottom: 1px solid rgba(245, 244, 244, 0.05);
+      padding: 0;
+      min-width: max-content;
+      position: relative;
+      background: rgba(255,255,255,0.01);
+    }
+
+    .gantt-bar {
+      position: absolute;
+      top: 30px;
+      height: 74px;
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid rgba(255,255,255,0.1);
+      min-width: 140px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+    }
+    .gantt-bar-compact {
+      height: 68px;
+      top: 33px;
+      padding: 8px 10px;
+    }
+    .gantt-bar-title {
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.1;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    }
+    .gantt-bar-title-clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+    .gantt-bar-meta {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      opacity: 0.95;
+    }
+    .gantt-bar-dates {
+      font-size: 9px;
+      font-weight: 700;
+      opacity: 0.95;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .gantt-bar-compact .gantt-bar-title {
+      font-size: 11px;
+    }
+    .gantt-bar-compact .gantt-bar-meta {
+      font-size: 9px;
+    }
+    .gantt-bar-compact .gantt-bar-dates {
+      font-size: 8px;
+    }
+
+    .milestone-badge {
+      background: #f59e0b;
+      color: black;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .tab-active {
+      border-bottom: 2px solid #51b8ea;
+      color: #51b8ea;
+    }
+
+    .scroll-hidden::-webkit-scrollbar { display: none; }
+
+    /* Dropdown legível */
+    select option { background: #111; color: #fff; }
+
+    /* Gantt temporal */
+    .gantt-timeline {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .gantt-ticks {
+      position: relative;
+      height: 42px;
+      min-width: max-content;
+    }
+    .gantt-tick {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      border-left: 1px solid rgba(255,255,255,0.08);
+      padding-left: 8px;
+      display: flex;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .gantt-project-span {
+      position: absolute;
+      top: 14px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(14, 170, 248, 0.829);
+      border: 1px solid rgba(241, 246, 248, 0.726);
+    }
+
+    .gantt-milestone {
+      position: absolute;
+      top: 8px;
+      width: 10px;
+      height: 10px;
+      transform: rotate(45deg);
+      background: #f59e0b;
+      border: 1px solid rgba(0,0,0,0.35);
+      border-radius: 2px;
+    }
+
+    .gantt-milestone-label {
+      position: absolute;
+      top: -2px;
+      transform: translateX(12px);
+      font-size: 10px;
+      font-weight: 800;
+      color: rgba(245,158,11,0.98);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      background: rgba(10,10,10,0.65);
+      border: 1px solid rgba(245,158,11,0.25);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+
+    .gantt-today-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(239, 68, 68, 0.9);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+      pointer-events: none;
+    }
+
+    .gantt-today-badge {
+      position: sticky;
+      left: 12px;
+      top: 10px;
+      z-index: 11;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: rgba(239, 68, 68, 0.95);
+      user-select: none;
+    }
+    .gantt-today-dot {
+      width: 8px; height: 8px; border-radius: 999px;
+      background: rgba(239, 68, 68, 0.95);
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
+    }
+
+    @media (max-width: 768px) {
+      .gantt-wrapper {
+        grid-template-columns: 170px 1fr;
+      }
+      .gantt-lane-label {
+        padding: 0.9rem;
+      }
+    }
+  </style>
+</head>
+
+<body class="text-white selection:bg-[#51b8ea]/30">
+
+<header class="py-4 border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
+  <div class="max-w-[1600px] mx-auto px-4 md:px-8 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <img src="https://static.wixstatic.com/media/a6967f_0c98d57376be4290aba002d8ba028a92~mv2.webp" alt="Somengil Logo" class="h-8 md:h-10">
+      <div class="h-6 w-px bg-white/20"></div>
+      <h1 class="text-sm md:text-lg font-black tracking-widest uppercase text-[#51b8ea]">Agile Board</h1>
+    </div>
+
+    <div class="flex items-center gap-2 md:gap-3">
+      <button onclick="fetchData()" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Sincronizar">
+        <i data-lucide="refresh-cw" size="20"></i>
+      </button>
+      <button onclick="toggleModal('projectModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Projetos">
+        <i data-lucide="folder-kanban" size="20"></i>
+      </button>
+      <button onclick="toggleModal('teamModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Equipa">
+        <i data-lucide="users" size="20"></i>
+      </button>
+      <button onclick="openCreateModal()" class="gradient-btn px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm shadow-lg shadow-[#004aad]/20">
+        <i data-lucide="plus-circle" size="18"></i> <span class="hidden md:inline">Nova Tarefa</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="p-4 md:p-8 max-w-[1600px] mx-auto">
+  <div class="flex items-center gap-6 mb-8 border-b border-white/10">
+    <button onclick="switchView('board')" id="btn-board" class="pb-3 px-2 font-bold text-sm transition-all tab-active flex items-center gap-2">
+      <i data-lucide="layout-grid" size="16"></i> Quadro
+    </button>
+    <button onclick="switchView('gantt')" id="btn-gantt" class="pb-3 px-2 font-bold text-sm transition-all text-white/40 hover:text-white flex items-center gap-2">
+      <i data-lucide="trello" size="16"></i> Lanes por Projeto
+    </button>
+  </div>
+
+  <div id="statusIndicator" class="mb-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/30">
+    <span id="dot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+    <span id="statusText">A carregar dados...</span>
+  </div>
+
+  <div id="view-board" class="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-0 transition-opacity duration-500">
+    <section class="flex flex-col gap-4">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="font-black text-xs uppercase tracking-[0.2em] text-white/50">A Fazer</h2>
+        <span id="count-todo" class="text-[10px] bg-white/10 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="list-todo" class="glass-panel p-3 rounded-2xl min-h-[400px] flex flex-col gap-3"></div>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="font-black text-xs uppercase tracking-[0.2em] text-[#51b8ea]">Em Curso</h2>
+        <span id="count-in-progress" class="text-[10px] bg-[#51b8ea]/20 text-[#51b8ea] px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="list-in-progress" class="glass-panel p-3 rounded-2xl min-h-[400px] flex flex-col gap-3"></div>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="font-black text-xs uppercase tracking-[0.2em] text-green-400">Concluído</h2>
+        <span id="count-done" class="text-[10px] bg-green-400/20 text-green-400 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="list-done" class="glass-panel p-3 rounded-2xl min-h-[400px] flex flex-col gap-3"></div>
+    </section>
+  </div>
+
+  <div id="view-gantt" class="hidden opacity-0 transition-opacity duration-500">
+    <div class="gantt-wrapper glass-panel">
+      <div id="gantt-labels" class="gantt-sidebar"></div>
+      <div id="gantt-lanes" class="gantt-main"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Tarefa -->
+<div id="taskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
+  <div class="bg-[#111] border border-white/10 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+      <h3 id="modalTitle" class="font-bold text-lg">Gerir Tarefa</h3>
+      <button onclick="toggleModal('taskModal', false)"><i data-lucide="x"></i></button>
+    </div>
+
+    <form id="taskForm" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+      <input type="hidden" id="fId">
+
+      <div class="space-y-1">
+        <label class="text-[10px] uppercase font-bold text-white/40">Projeto</label>
+        <select id="fProject" required class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-[#51b8ea] outline-none">
+          <option value="" class="bg-[#111] text-white">Selecione o Projeto...</option>
+        </select>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-[10px] uppercase font-bold text-white/40">Tarefa</label>
+        <input id="fTitle" required class="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-[#51b8ea]">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-1">
+          <label class="text-[10px] uppercase font-bold text-white/40">Responsável</label>
+          <select id="fUser" required class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-[#51b8ea] outline-none">
+            <option value="" class="bg-[#111] text-white">Responsável...</option>
+          </select>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-[10px] uppercase font-bold text-white/40">Prioridade</label>
+          <select id="fPriority" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-[#51b8ea] outline-none">
+            <option value="Alta" class="bg-[#111] text-white">Alta</option>
+            <option value="Média" selected class="bg-[#111] text-white">Média</option>
+            <option value="Baixa" class="bg-[#111] text-white">Baixa</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-1">
+          <label class="text-[10px] uppercase font-bold text-white/40">Milestone</label>
+          <input id="fMilestone" placeholder="Ex: Gate 1 / Revisão / Entrega" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-[#51b8ea]">
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] uppercase font-bold text-white/40">Milestone Prazo</label>
+          <input id="fMilestoneDate" type="date" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-[#51b8ea]">
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-[10px] uppercase font-bold text-white/40">Data de Início</label>
+        <input id="fStart" type="date" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-[#51b8ea]">
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-[10px] uppercase font-bold text-white/40">Prazo Final da Tarefa</label>
+        <input id="fDeadline" type="date" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-[#51b8ea]">
+      </div>
+
+      <div id="fStatusGroup" class="space-y-1 hidden">
+        <label class="text-[10px] uppercase font-bold text-white/40">Status</label>
+        <select id="fStatus" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-[#51b8ea] outline-none">
+          <option value="A Fazer" class="bg-[#111] text-white">A Fazer</option>
+          <option value="Em Curso" class="bg-[#111] text-white">Em Curso</option>
+          <option value="Concluído" class="bg-[#111] text-white">Concluído</option>
+        </select>
+      </div>
+
+      <div class="flex gap-3 mt-4">
+        <button type="button" id="deleteBtn" onclick="deleteTask()"
+          class="flex-1 bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold hidden">
+          Eliminar
+        </button>
+
+        <button type="submit"
+          class="flex-1 gradient-btn py-4 rounded-xl font-bold shadow-lg shadow-[#004aad]/20">
+          Guardar Tarefa
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Projetos -->
+<div id="projectModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
+  <div class="bg-[#111] border border-white/10 w-full max-w-md rounded-3xl shadow-2xl">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+      <h3 class="font-bold">Gerir Projetos</h3>
+      <button onclick="toggleModal('projectModal', false)"><i data-lucide="x"></i></button>
+    </div>
+    <div class="p-6">
+      <!-- ✅ agora também permite registar datas do projeto -->
+      <form id="projectForm" class="flex flex-col gap-3 mb-6">
+        <input id="pName" required placeholder="Nome do Projeto" class="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] uppercase font-bold text-white/40">Data Início</label>
+            <input id="pStart" type="date" class="w-full mt-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+          </div>
+          <div>
+            <label class="text-[10px] uppercase font-bold text-white/40">Data Fim</label>
+            <input id="pEnd" type="date" class="w-full mt-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+          </div>
+        </div>
+        <button type="submit" class="gradient-btn px-4 py-3 rounded-xl font-bold">Adicionar</button>
+      </form>
+      <div id="projectList" class="space-y-2 max-h-64 overflow-y-auto scroll-hidden"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Equipa -->
+<div id="teamModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
+  <div class="bg-[#111] border border-white/10 w-full max-w-md rounded-3xl shadow-2xl">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+      <h3 class="font-bold">Equipa Somengil</h3>
+      <button onclick="toggleModal('teamModal', false)"><i data-lucide="x"></i></button>
+    </div>
+    <div class="p-6">
+      <form id="teamForm" class="flex flex-col gap-3 mb-6">
+        <input id="mName" required placeholder="Nome do colaborador" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+        <input id="mRole" placeholder="Cargo" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+        <input id="mEmail" type="email" placeholder="Email" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+        <button type="submit" class="gradient-btn px-4 py-3 rounded-xl font-bold">Add</button>
+      </form>
+      <div id="teamList" class="space-y-2 max-h-64 overflow-y-auto scroll-hidden"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // URL do teu Apps Script
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwYnWiSnZsp2dLLLbCgcbaqUQpzgVikh4qdsLQ9Xw8VGyxQTNb1rQv8Cjce6x4-9Pe-7A/exec";
+
+  let localTasks = [];
+  let localTeam = [];
+  let localProjects = [];
+  let currentView = 'board';
+
+  const clean = (v) => (v ?? '').toString().trim();
+  const normKey = (k) => clean(k).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+
+  function dedupeStrings(arr) {
+    const seen = new Set();
+    const out = [];
+    for (const s of arr) {
+      const v = clean(s);
+      const sig = v.toLowerCase();
+      if (!v) continue;
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      out.push(v);
+    }
+    return out;
+  }
+
+  // ===== Datas (Gantt) =====
+  const PX_PER_DAY = 18;
+  const PAD_DAYS = 3;
+
+  function parseDate_(v) {
+    if (!v) return null;
+    if (v instanceof Date) return v;
+    const s = clean(v);
+
+    // ISO yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y,m,d] = s.split('-').map(Number);
+      return new Date(y, m-1, d);
+    }
+
+    // pt-PT dd/mm/yyyy
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [d,m,y] = s.split('/').map(Number);
+      return new Date(y, m-1, d);
+    }
+
+    const dt = new Date(s);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function toISODate_(v) {
+    const d = parseDate_(v);
+    if (!d) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function dayStart_(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function diffDays_(a, b) {
+    const ms = dayStart_(b).getTime() - dayStart_(a).getTime();
+    return Math.round(ms / (1000*60*60*24));
+  }
+
+  function addDays_(d, n) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+
+  function syncGanttSidebarHeaderHeight() {
+    const timeline = document.querySelector('#gantt-lanes .gantt-timeline');
+    const sidebarHeader = document.querySelector('#gantt-labels .gantt-sidebar-header');
+    if (!timeline || !sidebarHeader) return;
+
+    const timelineHeight = Math.ceil(timeline.getBoundingClientRect().height);
+    sidebarHeader.style.height = `${timelineHeight}px`;
+    document.documentElement.style.setProperty('--gantt-timeline-height', `${timelineHeight}px`);
+  }
+
+  // ===== Normalização de dados =====
+  function normalize(raw, kind) {
+    let arr = [];
+    if (Array.isArray(raw)) arr = raw;
+    else if (raw && typeof raw === 'object') {
+      for (let k in raw) {
+        if (Array.isArray(raw[k])) { arr = raw[k]; break; }
+      }
+    }
+
+    return arr.map(row => {
+      const n = { _raw: row };
+
+      for (let k in row) {
+        const key = normKey(k);
+        const val = row[k];
+
+        if (key === 'id') { n.id = clean(val); continue; }
+
+        if (kind === 'tarefas') {
+          // Tarefas: coluna B "Projeto" será alimentada pelo dropdown
+          if (key === 'projeto') n.projeto = clean(val);
+          else if (key === 'tarefa' || key === 'titulo') n.titulo = clean(val);
+          else if (key === 'status') n.status = clean(val);
+          else if (key === 'prioridade') n.prioridade = clean(val);
+          else if (key === 'responsavel' || key === 'responsavel(e)' || key === 'responsavel(a)') n.responsavel = clean(val);
+          else if (key === 'datacriada' || key === 'data' || key === 'dataregisto') n.datacriada = val;
+          else if (key === 'inicio' || key === 'datainicio' || key === 'start') n.inicio = val;
+          else if (key === 'prazo' || key === 'deadline') n.prazo = val;
+          else if (key === 'milestone') n.milestone = clean(val);
+          else if (key === 'milestoneprazo' || key === 'milestonedata') n.milestoneprazo = val;
+          else n[key] = val;
+        }
+
+        if (kind === 'equipa') {
+          if (key === 'nome' || key === 'responsavel' || key === 'colaborador') {
+            const name = clean(val);
+            n.nome = name;
+            n.responsavel = name;
+          } else n[key] = val;
+        }
+
+        if (kind === 'projetos') {
+          // Projetos: headers -> ID | Nome Projeto | Data Início | Data Fim | Status
+          if (key === 'nomeprojeto' || key === 'projeto' || key === 'nome' || key === 'titulo') {
+            const name = clean(val);
+            n.projeto = name;
+            n.nome = name;
+          } else if (key === 'datainicio' || key === 'inicio' || key === 'start') {
+            n.datainicio = val;
+          } else if (key === 'datafim' || key === 'fim' || key === 'end') {
+            n.datafim = val;
+          } else if (key === 'status') {
+            n.status = clean(val);
+          } else if (key === 'arquivado') {
+            n.arquivado = clean(val);
+          } else if (key === 'estado') {
+            const st = clean(val).toLowerCase();
+            n.status = (st === 'arquivado' || st === 'inativo') ? 'Arquivado' : 'Ativo';
+          } else if (key === 'ativo') {
+            const av = clean(val).toLowerCase();
+            const isActive = av === 'sim' || av === 'true' || av === '1' || av === 'ativo';
+            n.status = isActive ? 'Ativo' : 'Arquivado';
+          } else n[key] = val;
+        }
+      }
+
+      if (kind === 'projetos' && !clean(n.status)) {
+        const archivedFallback = clean(n.arquivado).toLowerCase();
+        const isArchivedFallback = archivedFallback === 'sim' || archivedFallback === 'true' || archivedFallback === '1' || archivedFallback === 'arquivado' || archivedFallback === 'inativo' || archivedFallback === 'inativo(a)';
+        n.status = isArchivedFallback ? 'Arquivado' : 'Ativo';
+      }
+
+      if (!n.id) {
+        n.id = (kind + '_' + btoa(unescape(encodeURIComponent(JSON.stringify(row)))).slice(0, 12)).replace(/=+$/,'');
+      }
+
+      return n;
+    });
+  }
+
+  function isProjectArchived(project) {
+    const status = clean(project?.status).toLowerCase();
+    if (status) return status === 'arquivado' || status === 'inativo';
+
+    const legacy = clean(project?.arquivado).toLowerCase();
+    return legacy === 'sim' || legacy === 'true' || legacy === '1' || legacy === 'arquivado' || legacy === 'inativo' || legacy === 'inativo(a)';
+  }
+
+  // ===== Fetch =====
+  async function fetchData() {
+    updateStatus('Sincronizando...', 'yellow');
+    try {
+      const [rTasks, rTeam, rProjs] = await Promise.all([
+        fetch(`${SCRIPT_URL}?sheet=Tarefas&cache=${Date.now()}`, { redirect: 'follow' }),
+        fetch(`${SCRIPT_URL}?sheet=Equipa&cache=${Date.now()}`, { redirect: 'follow' }),
+        fetch(`${SCRIPT_URL}?sheet=Projetos&cache=${Date.now()}`, { redirect: 'follow' })
+      ]);
+
+      const tasksRaw = await rTasks.json();
+      const teamRaw = await rTeam.json();
+      const projectsRaw = await rProjs.json();
+
+      localTasks = normalize(tasksRaw, 'tarefas');
+      localTeam = normalize(teamRaw, 'equipa');
+
+      // ✅ Projetos: fonte oficial é o separador Projetos (Nome Projeto, Data Início, Data Fim)
+      localProjects = normalize(projectsRaw, 'projetos')
+        .filter(p => clean(p.projeto || p.nome));
+
+      renderAll();
+      updateStatus('Ligado', 'green');
+    } catch (err) {
+      console.error("Erro no fetch:", err);
+      updateStatus('Erro de Ligação', 'red');
+    }
+  }
+
+  function renderAll() {
+    populateSelects();
+    if (currentView === 'board') renderBoard();
+    else renderGantt();
+    renderLists();
+  }
+
+  // ===== Board =====
+  function renderBoard() {
+    const cols = {
+      todo: document.getElementById('list-todo'),
+      progress: document.getElementById('list-in-progress'),
+      done: document.getElementById('list-done')
+    };
+    Object.values(cols).forEach(c => c.innerHTML = '');
+
+    let count = { todo: 0, progress: 0, done: 0 };
+
+    localTasks.forEach(task => {
+      const s = (task.status || '').toLowerCase();
+      let col = 'todo';
+      if (s.includes('curso') || s.includes('progress') || s === 'em curso') col = 'progress';
+      else if (s.includes('concluido') || s.includes('concluído') || s.includes('done')) col = 'done';
+      count[col]++;
+
+      const div = document.createElement('div');
+      div.className = "task-card p-4 rounded-xl shadow-sm cursor-pointer border-l-4";
+      div.style.borderLeftColor = task.prioridade === 'Alta' ? '#ef4444' : '#004aad';
+      div.onclick = () => openEditModal(task.id);
+
+      const msDate = task.milestoneprazo ? parseDate_(task.milestoneprazo) : null;
+      const deadline = task.prazo ? parseDate_(task.prazo) : null;
+
+      div.innerHTML = `
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[9px] uppercase font-black text-[#004aad] tracking-wider truncate">${clean(task.projeto) || '—'}</span>
+            ${clean(task.milestone) ? `<span class="milestone-badge">${clean(task.milestone)}</span>` : ''}
+          </div>
+          <h4 class="font-bold text-sm text-gray-800 leading-tight mb-2">${clean(task.titulo) || 'Nova Tarefa'}</h4>
+        </div>
+        <div class="flex items-center justify-between mt-1 pt-2 border-t border-gray-100 text-[10px] text-gray-400 font-bold">
+          <div class="flex items-center gap-1"><i data-lucide="user" size="10"></i> ${clean(task.responsavel) || '---'}</div>
+          <div class="flex flex-col items-end">
+            ${msDate ? `<span class="text-amber-600">MS: ${msDate.toLocaleDateString('pt-PT')}</span>` : ''}
+            <span>PZ: ${deadline ? deadline.toLocaleDateString('pt-PT') : '---'}</span>
+          </div>
+        </div>
+      `;
+      cols[col].appendChild(div);
+    });
+
+    document.getElementById('count-todo').innerText = count.todo;
+    document.getElementById('count-in-progress').innerText = count.progress;
+    document.getElementById('count-done').innerText = count.done;
+
+    document.getElementById('view-board').style.opacity = '1';
+    lucide.createIcons();
+  }
+
+  // ===== Gantt temporal =====
+  function renderGantt() {
+    const labels = document.getElementById('gantt-labels');
+    const lanes = document.getElementById('gantt-lanes');
+    labels.innerHTML = '';
+    lanes.innerHTML = '';
+
+    const labelsHeader = document.createElement('div');
+    labelsHeader.className = 'gantt-sidebar-header';
+    labels.appendChild(labelsHeader);
+
+    const activeProjects = localProjects.filter(p => !isProjectArchived(p));
+    const projectNames = activeProjects.map(p => clean(p.projeto || p.nome)).filter(Boolean);
+    const finalProjects = projectNames.length ? projectNames : [];
+
+    // Janela temporal global: inclui datas de projetos + datas de tarefas
+    const starts = [];
+    const ends = [];
+
+    // Projetos
+    localProjects.forEach(p => {
+      const ps = parseDate_(p.datainicio);
+      const pe = parseDate_(p.datafim);
+      if (ps) starts.push(ps);
+      if (pe) ends.push(pe);
+    });
+
+    // Tarefas
+    localTasks.forEach(t => {
+      const s = parseDate_(t.inicio) || parseDate_(t.datacriada) || parseDate_(t.prazo) || parseDate_(t.milestoneprazo);
+      const e = parseDate_(t.prazo) || parseDate_(t.milestoneprazo) || s;
+      if (s) starts.push(s);
+      if (e) ends.push(e);
+    });
+
+    if (!starts.length || !ends.length) {
+      lanes.innerHTML = `<div class="p-6 text-white/60 text-sm">Sem datas suficientes. Define datas nas tarefas e/ou no separador Projetos (Data Início / Data Fim).</div>`;
+      document.getElementById('view-gantt').style.opacity = '1';
+      return;
+    }
+
+    let globalStart = new Date(Math.min(...starts.map(d => d.getTime())));
+    let globalEnd = new Date(Math.max(...ends.map(d => d.getTime())));
+    globalStart = addDays_(globalStart, -PAD_DAYS);
+    globalEnd = addDays_(globalEnd, PAD_DAYS);
+
+    const totalDays = Math.max(1, diffDays_(globalStart, globalEnd));
+    const totalWidth = totalDays * PX_PER_DAY;
+
+    // Timeline sticky
+    const timeline = document.createElement('div');
+    timeline.className = 'gantt-timeline';
+    timeline.style.width = totalWidth + 'px';
+
+    const ticks = document.createElement('div');
+    ticks.className = 'gantt-ticks';
+    ticks.style.width = totalWidth + 'px';
+
+    for (let d = 0; d <= totalDays; d += 7) {
+      const date = addDays_(globalStart, d);
+      const tick = document.createElement('div');
+      tick.className = 'gantt-tick';
+      tick.style.left = (d * PX_PER_DAY) + 'px';
+      tick.innerText = date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
+      ticks.appendChild(tick);
+    }
+
+    const today = dayStart_(new Date());
+    const todayOffset = diffDays_(globalStart, today);
+    if (todayOffset >= 0 && todayOffset <= totalDays) {
+      const todayBadge = document.createElement('div');
+      todayBadge.className = 'gantt-today-badge';
+      todayBadge.innerHTML = `<span class="gantt-today-dot"></span> Hoje`;
+      timeline.appendChild(todayBadge);
+
+      const todayLine = document.createElement('div');
+      todayLine.className = 'gantt-today-line';
+      todayLine.style.left = (todayOffset * PX_PER_DAY) + 'px';
+      ticks.appendChild(todayLine);
+    }
+
+    timeline.appendChild(ticks);
+    lanes.appendChild(timeline);
+    requestAnimationFrame(syncGanttSidebarHeaderHeight);
+
+    // Lanes por projeto
+    finalProjects.forEach((projName, laneIndex) => {
+      const proj = activeProjects.find(p => clean(p.projeto).toLowerCase() === clean(projName).toLowerCase());
+
+      // label com datas (se existirem)
+      const pS = proj ? parseDate_(proj.datainicio) : null;
+      const pE = proj ? parseDate_(proj.datafim) : null;
+      const label = document.createElement('div');
+      label.className = 'gantt-lane-label';
+      label.innerHTML = `
+        <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
+        <div class="h-1 w-8 bg-white/20 rounded"></div>
+        <div class="mt-2 text-[10px] font-bold text-white/35">
+          ${pS ? pS.toLocaleDateString('pt-PT') : '—'} → ${pE ? pE.toLocaleDateString('pt-PT') : '—'}
+        </div>
+      `;
+      labels.appendChild(label);
+
+      const lane = document.createElement('div');
+      lane.className = 'gantt-lane-content';
+      lane.style.width = totalWidth + 'px';
+      lane.style.background = laneIndex % 2 === 0 ? 'rgba(87,87,87,0.8)' : 'rgba(255,255,255,0.03)';
+
+      const pTasks = localTasks.filter(t => clean(t.projeto).toLowerCase() === clean(projName).toLowerCase());
+
+      // Span total do projeto: usa Data Início/Fim do projeto; se faltar, calcula por tarefas
+      let spanStart = pS;
+      let spanEnd = pE;
+
+      if (!spanStart || !spanEnd) {
+        const pDates = pTasks.map(t => {
+          const s = parseDate_(t.inicio) || parseDate_(t.datacriada) || parseDate_(t.prazo);
+          const e = parseDate_(t.prazo) || parseDate_(t.milestoneprazo) || s;
+          return (s && e) ? { s, e } : null;
+        }).filter(Boolean);
+
+        if (pDates.length) {
+          if (!spanStart) spanStart = new Date(Math.min(...pDates.map(x => x.s.getTime())));
+          if (!spanEnd) spanEnd = new Date(Math.max(...pDates.map(x => x.e.getTime())));
+        }
+      }
+
+      if (spanStart && spanEnd) {
+        const left = Math.max(0, diffDays_(globalStart, spanStart)) * PX_PER_DAY;
+        const width = Math.max(1, (diffDays_(spanStart, spanEnd) + 1)) * PX_PER_DAY;
+
+        const span = document.createElement('div');
+        span.className = 'gantt-project-span';
+        span.style.left = left + 'px';
+        span.style.width = width + 'px';
+        lane.appendChild(span);
+      }
+
+      const durationDays = (spanStart && spanEnd) ? Math.max(1, diffDays_(spanStart, spanEnd) + 1) : null;
+      const durationLabel = durationDays ? `${durationDays} dia(s)` : '—';
+      label.innerHTML = `
+        <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
+        <div class="h-1 w-8 bg-white/20 rounded"></div>
+        <div class="mt-2 text-[10px] font-bold text-white/35">
+          ${spanStart ? spanStart.toLocaleDateString('pt-PT') : '—'} → ${spanEnd ? spanEnd.toLocaleDateString('pt-PT') : '—'}
+        </div>
+        <div class="text-[10px] font-black text-[#51b8ea]/80 mt-1">Duração: ${durationLabel}</div>
+      `;
+
+      // Milestones (por tarefa)
+      pTasks.forEach(t => {
+        const msDate = parseDate_(t.milestoneprazo);
+        if (!msDate) return;
+        const x = Math.max(0, diffDays_(globalStart, msDate)) * PX_PER_DAY;
+
+        const ms = document.createElement('div');
+        ms.className = 'gantt-milestone';
+        ms.style.left = x + 'px';
+
+        const msl = document.createElement('div');
+        msl.className = 'gantt-milestone-label';
+        msl.style.left = x + 'px';
+        msl.innerText = clean(t.milestone) ? `MS: ${clean(t.milestone)}` : 'MS';
+
+        lane.appendChild(ms);
+        lane.appendChild(msl);
+      });
+
+      // Barras das tarefas
+      pTasks.forEach(task => {
+        const start = parseDate_(task.inicio) || parseDate_(task.datacriada) || parseDate_(task.prazo);
+        const end = parseDate_(task.prazo) || start;
+        if (!start || !end) return;
+
+        const status = (task.status || '').toLowerCase();
+        const isDone = status.includes('concluido') || status.includes('concluído');
+        const isWorking = status.includes('curso');
+
+        const leftDays = Math.max(0, diffDays_(globalStart, start));
+        const durDays = Math.max(1, diffDays_(start, end) + 1);
+        const barWidth = Math.max(140, durDays * PX_PER_DAY);
+        const isCompact = barWidth < 190;
+        const responsible = clean(task.responsavel) || '---';
+        const compactResponsible = responsible.split(' ')[0] || responsible;
+
+        const bar = document.createElement('div');
+        bar.className = `gantt-bar ${isDone ? 'bg-green-600 border-green-400' : (isWorking ? 'bg-[#004aad] border-[#51b8ea]' : 'bg-white/5 border-white/10 text-white/70')}`;
+        if (isCompact) bar.classList.add('gantt-bar-compact');
+        bar.style.left = (leftDays * PX_PER_DAY) + 'px';
+        bar.style.width = barWidth + 'px';
+
+        bar.innerHTML = `
+          <div class="flex justify-between items-start">
+            <span class="gantt-bar-title gantt-bar-title-clamp w-[82%]">${clean(task.titulo) || '---'}</span>
+            ${clean(task.milestone) ? `<i data-lucide="flag" size="10" class="text-amber-400"></i>` : ''}
+          </div>
+          <div class="flex justify-between items-center mt-2 gap-2">
+            <span class="gantt-bar-meta uppercase truncate">${isCompact ? compactResponsible : responsible}</span>
+            <div class="gantt-bar-dates flex flex-col items-end">
+              <span>${isCompact
+                ? end.toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit' })
+                : `${start.toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit' })} → ${end.toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit' })}`}
+              </span>
+              <span>${durDays} ${isCompact ? 'd' : 'dia(s)'}</span>
+            </div>
+          </div>
+        `;
+
+        bar.onclick = () => openEditModal(task.id);
+        lane.appendChild(bar);
+      });
+
+      lanes.appendChild(lane);
+    });
+
+    document.getElementById('view-gantt').style.opacity = '1';
+    syncGanttSidebarHeaderHeight();
+    lucide.createIcons();
+  }
+
+  // ===== Selects + Lists =====
+  function populateSelects() {
+    const uSel = document.getElementById('fUser');
+    const pSel = document.getElementById('fProject');
+
+    uSel.innerHTML = '<option value="" class="bg-[#111] text-white">Responsável...</option>';
+    pSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecione o Projeto...</option>';
+
+    dedupeStrings(localTeam.map(m => m.nome || m.responsavel || (m._raw ? Object.values(m._raw)[0] : '')))
+      .forEach(name => {
+        const opt = new Option(name, name);
+        opt.style.backgroundColor = '#111';
+        opt.style.color = '#fff';
+        uSel.add(opt);
+      });
+
+    // ✅ opções vêm do separador Projetos -> Nome Projeto
+    dedupeStrings(localProjects.filter(p => !isProjectArchived(p)).map(p => p.projeto || p.nome))
+      .forEach(name => {
+        const opt = new Option(name, name);
+        opt.style.backgroundColor = '#111';
+        opt.style.color = '#fff';
+        pSel.add(opt);
+      });
+  }
+
+  function renderLists() {
+    const tList = document.getElementById('teamList');
+    const pList = document.getElementById('projectList');
+    tList.innerHTML = '';
+    pList.innerHTML = `
+      <div class="mb-2">
+        <div class="text-[10px] uppercase tracking-[0.18em] font-black text-white/45 mb-2">Ativos</div>
+        <div id="projectListActive" class="space-y-2"></div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-white/10">
+        <div class="text-[10px] uppercase tracking-[0.18em] font-black text-amber-300/70 mb-2">Arquivados</div>
+        <div id="projectListArchived" class="space-y-2"></div>
+      </div>
+    `;
+
+    const pListActive = document.getElementById('projectListActive');
+    const pListArchived = document.getElementById('projectListArchived');
+
+    localTeam.forEach(m => {
+      const name = clean(m.nome || m.responsavel || (m._raw ? Object.values(m._raw)[0] : '---'));
+      if (!name) return;
+      const role = clean(m.cargo);
+      const email = clean(m.email);
+      tList.innerHTML += `
+        <div class="p-3 bg-white/5 rounded-xl text-xs flex justify-between gap-3">
+          <div class="flex flex-col">
+            <span class="font-bold">${name}</span>
+            ${role ? `<span class="text-[10px] text-white/50 font-bold">${role}</span>` : ''}
+            ${email ? `<span class="text-[10px] text-white/40">${email}</span>` : ''}
+          </div>
+          <i data-lucide="user" size="14"></i>
+        </div>
+      `;
+    });
+
+    const sortedProjects = [...localProjects].sort((a, b) => {
+      const aEnd = parseDate_(a.datafim);
+      const bEnd = parseDate_(b.datafim);
+
+      if (aEnd && bEnd) {
+        const diff = aEnd.getTime() - bEnd.getTime();
+        if (diff !== 0) return diff;
+      } else if (aEnd && !bEnd) {
+        return -1;
+      } else if (!aEnd && bEnd) {
+        return 1;
+      }
+
+      const aName = clean(a.projeto || a.nome).toLowerCase();
+      const bName = clean(b.projeto || b.nome).toLowerCase();
+      return aName.localeCompare(bName, 'pt-PT');
+    });
+
+    sortedProjects.forEach(p => {
+      const name = clean(p.projeto || p.nome || '---');
+      if (!name) return;
+
+      const ps = parseDate_(p.datainicio);
+      const pe = parseDate_(p.datafim);
+      const archived = isProjectArchived(p);
+      const toggleLabel = archived ? 'Ativar' : 'Arquivar';
+      const targetList = archived ? pListArchived : pListActive;
+
+      targetList.innerHTML += `
+        <div class="p-3 ${archived ? 'bg-white/10 border border-amber-400/30' : 'bg-white/5'} rounded-xl text-xs flex items-start justify-between gap-3">
+          <div class="flex flex-col">
+            <span class="font-bold ${archived ? 'text-white/60 line-through' : ''}">${name}</span>
+            <span class="text-[10px] text-white/40 font-bold">
+              ${ps ? ps.toLocaleDateString('pt-PT') : '—'} → ${pe ? pe.toLocaleDateString('pt-PT') : '—'}
+            </span>
+            ${archived ? '<span class="text-[10px] text-amber-300 font-black uppercase tracking-wide mt-1">Arquivado</span>' : ''}
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="toggleProjectArchive('${clean(p.id)}')" class="text-[10px] font-black px-2 py-1 rounded-lg ${archived ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${toggleLabel}</button>
+            <i data-lucide="anchor" size="14"></i>
+          </div>
+        </div>
+      `;
+    });
+
+    if (!pListActive.innerHTML.trim()) {
+      pListActive.innerHTML = '<div class="p-3 rounded-xl bg-white/5 text-[11px] text-white/45">Sem projetos ativos.</div>';
+    }
+
+    if (!pListArchived.innerHTML.trim()) {
+      pListArchived.innerHTML = '<div class="p-3 rounded-xl bg-white/5 text-[11px] text-white/35">Sem projetos arquivados.</div>';
+    }
+
+    lucide.createIcons();
+  }
+
+  // ===== Navegação =====
+  function switchView(v) {
+    currentView = v;
+    document.getElementById('view-board').classList.toggle('hidden', v !== 'board');
+    document.getElementById('view-gantt').classList.toggle('hidden', v !== 'gantt');
+    document.getElementById('btn-board').classList.toggle('tab-active', v === 'board');
+    document.getElementById('btn-gantt').classList.toggle('tab-active', v === 'gantt');
+    renderAll();
+  }
+
+  // ===== Modais =====
+  function openCreateModal() {
+    document.getElementById('taskForm').reset();
+    document.getElementById('fId').value = '';
+    document.getElementById('modalTitle').innerText = 'Nova Tarefa';
+    document.getElementById('fStatusGroup').classList.add('hidden');
+    document.getElementById('deleteBtn').classList.add('hidden');
+    document.getElementById('fStart').value = new Date().toISOString().slice(0,10);
+    toggleModal('taskModal', true);
+  }
+
+  function openEditModal(id) {
+    const t = localTasks.find(x => x.id == id);
+    if (!t) return;
+
+    document.getElementById('fId').value = t.id;
+    document.getElementById('fTitle').value = clean(t.titulo);
+    document.getElementById('fProject').value = clean(t.projeto); // vem do dropdown -> Nome Projeto
+    document.getElementById('fUser').value = clean(t.responsavel);
+    document.getElementById('fPriority').value = clean(t.prioridade) || 'Média';
+    document.getElementById('fMilestone').value = clean(t.milestone);
+    document.getElementById('fMilestoneDate').value = t.milestoneprazo ? toISODate_(t.milestoneprazo) : '';
+    document.getElementById('fStart').value = t.inicio ? toISODate_(t.inicio) : '';
+    document.getElementById('fDeadline').value = t.prazo ? toISODate_(t.prazo) : '';
+    document.getElementById('fStatus').value = clean(t.status) || 'A Fazer';
+
+    document.getElementById('modalTitle').innerText = 'Editar Tarefa';
+    document.getElementById('fStatusGroup').classList.remove('hidden');
+    document.getElementById('deleteBtn').classList.remove('hidden');
+
+    toggleModal('taskModal', true);
+  }
+
+  // ===== Submits =====
+  document.getElementById('taskForm').onsubmit = (e) => {
+    e.preventDefault();
+
+    const isEdit = !!document.getElementById('fId').value;
+    const id = document.getElementById('fId').value || Date.now().toString();
+
+    // ✅ coluna B "Projeto" (Tarefas) é alimentada pelo dropdown -> Nome Projeto
+    const selectedProject = document.getElementById('fProject').value;
+
+    const data = {
+      id,
+      projeto: selectedProject,
+      tarefa: document.getElementById('fTitle').value,
+      responsavel: document.getElementById('fUser').value,
+      prioridade: document.getElementById('fPriority').value,
+      milestone: document.getElementById('fMilestone').value,
+      milestoneprazo: document.getElementById('fMilestoneDate').value,
+      inicio: document.getElementById('fStart').value,
+      prazo: document.getElementById('fDeadline').value,
+      status: document.getElementById('fStatus').value || 'A Fazer',
+      datacriada: new Date().toLocaleDateString('pt-PT')
+    };
+
+    const idx = localTasks.findIndex(x => x.id == id);
+    const norm = normalize([data], 'tarefas')[0];
+    if (idx > -1) localTasks[idx] = norm;
+    else localTasks.push(norm);
+
+    renderAll();
+    toggleModal('taskModal', false);
+
+    sendToCloud(isEdit ? 'update' : 'add', data, id, 'Tarefas');
+  };
+
+  // ✅ Projetos guardam no separador "Projetos":
+  // ID | Nome Projeto | Data Início | Data Fim | Status
+  document.getElementById('projectForm').onsubmit = (e) => {
+    e.preventDefault();
+
+    const nomeProjeto = clean(document.getElementById('pName').value);
+    if (!nomeProjeto) return;
+
+    const exists = localProjects.some(p => clean(p.projeto).toLowerCase() === nomeProjeto.toLowerCase());
+    if (exists) {
+      document.getElementById('pName').value = '';
+      document.getElementById('pStart').value = '';
+      document.getElementById('pEnd').value = '';
+      renderAll();
+      return;
+    }
+
+    const pid = Date.now().toString();
+    const pStart = document.getElementById('pStart').value;
+    const pEnd = document.getElementById('pEnd').value;
+
+    // local
+    localProjects.push({
+      id: pid,
+      projeto: nomeProjeto,
+      nome: nomeProjeto,
+      datainicio: pStart,
+      datafim: pEnd,
+      status: 'Ativo'
+    });
+
+    renderAll();
+
+    // cloud (coluna B -> "Nome Projeto")
+    sendToCloud('add', {
+      "Nome Projeto": nomeProjeto,
+      "Data Início": pStart,
+      "Data Fim": pEnd,
+      "Status": 'Ativo'
+    }, pid, 'Projetos');
+
+    document.getElementById('pName').value = '';
+    document.getElementById('pStart').value = '';
+    document.getElementById('pEnd').value = '';
+  };
+
+  document.getElementById('teamForm').onsubmit = (e) => {
+    e.preventDefault();
+    const name = clean(document.getElementById('mName').value);
+    const role = clean(document.getElementById('mRole').value);
+    const email = clean(document.getElementById('mEmail').value);
+    if (!name) return;
+
+    const memberId = Date.now().toString();
+
+    const exists = localTeam.some(m => clean(m.nome).toLowerCase() === name.toLowerCase());
+    if (!exists) localTeam.push({ id: memberId, nome: name, responsavel: name, cargo: role, email });
+
+    document.getElementById('mName').value = '';
+    document.getElementById('mRole').value = '';
+    document.getElementById('mEmail').value = '';
+    renderAll();
+
+    sendToCloud('add', { "Nome": name, "Cargo": role, "Email": email }, memberId, 'Equipa');
+  };
+
+  function toggleProjectArchive(projectId) {
+    const idx = localProjects.findIndex(p => clean(p.id) === clean(projectId));
+    if (idx < 0) return;
+
+    const current = isProjectArchived(localProjects[idx]);
+    const nextArchived = !current;
+    localProjects[idx].status = nextArchived ? 'Arquivado' : 'Ativo';
+    localProjects[idx].arquivado = nextArchived ? 'Sim' : 'Não';
+
+    renderAll();
+    sendToCloud('update', { "Status": nextArchived ? 'Arquivado' : 'Ativo' }, projectId, 'Projetos');
+  }
+
+  // ===== Delete tarefa =====
+  function deleteTask() {
+    const id = document.getElementById('fId').value;
+    if (!id) return;
+
+    const ok = confirm("Tens a certeza que queres eliminar esta tarefa?");
+    if (!ok) return;
+
+    localTasks = localTasks.filter(t => t.id != id);
+    renderAll();
+    toggleModal('taskModal', false);
+
+    sendToCloud('delete', {}, id, 'Tarefas');
+  }
+
+  // ===== Cloud =====
+  async function sendToCloud(action, data, id, sheet) {
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ action, sheet, id, data })
+      });
+    } catch (e) {}
+  }
+
+  // ===== UI =====
+  function toggleModal(id, show) {
+    document.getElementById(id).style.display = show ? 'flex' : 'none';
+  }
+
+  function updateStatus(text, colour) {
+    document.getElementById('statusText').innerText = text;
+    const dot = document.getElementById('dot');
+    dot.classList.remove('bg-yellow-500', 'bg-green-500', 'bg-red-500');
+    dot.classList.add(
+      colour === 'green' ? 'bg-green-500' :
+      colour === 'red' ? 'bg-red-500' :
+      'bg-yellow-500'
+    );
+  }
+
+  window.addEventListener('resize', () => {
+    if (currentView === 'gantt') syncGanttSidebarHeaderHeight();
+  });
+
+  window.onload = fetchData;
+</script>
+
+</body>
+</html>
