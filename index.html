@@ -314,6 +314,9 @@
       <button onclick="toggleModal('projectModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Projetos">
         <i data-lucide="folder-kanban" size="20"></i>
       </button>
+      <button onclick="toggleModal('requirementsModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Requisitos">
+        <i data-lucide="list-checks" size="20"></i>
+      </button>
       <button onclick="toggleModal('teamModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Equipa">
         <i data-lucide="users" size="20"></i>
       </button>
@@ -510,6 +513,47 @@
   </div>
 </div>
 
+<!-- Modal Requisitos -->
+<div id="requirementsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
+  <div class="bg-[#111] border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+      <h3 class="font-bold">Requisitos por Projeto</h3>
+      <button onclick="toggleModal('requirementsModal', false)"><i data-lucide="x"></i></button>
+    </div>
+    <div class="p-6">
+      <form id="requirementsForm" class="flex flex-col gap-3 mb-6">
+        <div class="grid grid-cols-1 gap-3">
+          <select id="rProject" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+            <option value="" class="bg-[#111] text-white">Selecionar projeto existente...</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <input id="rRequirement" placeholder="Adicionar requisito" class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+          <button id="rAddBtn" type="button" class="px-4 py-3 rounded-xl font-bold border border-white/15 bg-white/5">Add</button>
+        </div>
+        <div id="rPendingList" class="space-y-2"></div>
+        <button type="submit" class="gradient-btn px-4 py-3 rounded-xl font-bold">Guardar Requisitos</button>
+      </form>
+
+      <div class="mb-4 p-3 rounded-xl border border-white/10 bg-white/5">
+        <div class="text-[10px] uppercase tracking-[0.18em] font-black text-white/45 mb-2">Consultar por projeto</div>
+        <select id="rProjectView" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#51b8ea]">
+          <option value="" class="bg-[#111] text-white">Selecionar projeto para ver requisitos...</option>
+        </select>
+      </div>
+      <div id="requirementsProjectView" class="space-y-2 mb-4"></div>
+      <div id="requirementsList" class="hidden space-y-4 max-h-72 overflow-y-auto scroll-hidden"></div>
+    </div>
+  </div>
+</div>
+
+<div id="savingOverlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-[200]">
+  <div class="bg-[#111] border border-white/10 rounded-2xl px-6 py-5 flex items-center gap-4 shadow-2xl">
+    <div class="w-7 h-7 rounded-full border-2 border-white/20 border-t-[#51b8ea] animate-spin"></div>
+    <div id="savingText" class="text-sm font-bold text-white/90">A gravar...</div>
+  </div>
+</div>
+
 <script>
   // URL do teu Apps Script
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwYnWiSnZsp2dLLLbCgcbaqUQpzgVikh4qdsLQ9Xw8VGyxQTNb1rQv8Cjce6x4-9Pe-7A/exec";
@@ -517,6 +561,10 @@
   let localTasks = [];
   let localTeam = [];
   let localProjects = [];
+  let localRequirements = [];
+  let pendingRequirements = [];
+  let recentRequirementProjects = new Set();
+  let savingRequests = 0;
   let currentView = 'board';
 
   const clean = (v) => (v ?? '').toString().trim();
@@ -660,6 +708,14 @@
             n.status = isActive ? 'Ativo' : 'Arquivado';
           } else n[key] = val;
         }
+
+        if (kind === 'requisitos') {
+          if (key === 'projeto' || key === 'nomeprojeto' || key === 'nome') {
+            n.projeto = clean(val);
+          } else if (key === 'requisito' || key === 'requisitos' || key === 'descricao') {
+            n.requisito = clean(val);
+          } else n[key] = val;
+        }
       }
 
       if (kind === 'projetos' && !clean(n.status)) {
@@ -688,15 +744,17 @@
   async function fetchData() {
     updateStatus('Sincronizando...', 'yellow');
     try {
-      const [rTasks, rTeam, rProjs] = await Promise.all([
+      const [rTasks, rTeam, rProjs, rReqs] = await Promise.all([
         fetch(`${SCRIPT_URL}?sheet=Tarefas&cache=${Date.now()}`, { redirect: 'follow' }),
         fetch(`${SCRIPT_URL}?sheet=Equipa&cache=${Date.now()}`, { redirect: 'follow' }),
-        fetch(`${SCRIPT_URL}?sheet=Projetos&cache=${Date.now()}`, { redirect: 'follow' })
+        fetch(`${SCRIPT_URL}?sheet=Projetos&cache=${Date.now()}`, { redirect: 'follow' }),
+        fetch(`${SCRIPT_URL}?sheet=Requisitos&cache=${Date.now()}`, { redirect: 'follow' })
       ]);
 
       const tasksRaw = await rTasks.json();
       const teamRaw = await rTeam.json();
       const projectsRaw = await rProjs.json();
+      const requirementsRaw = await rReqs.json();
 
       localTasks = normalize(tasksRaw, 'tarefas');
       localTeam = normalize(teamRaw, 'equipa');
@@ -704,6 +762,9 @@
       // ✅ Projetos: fonte oficial é o separador Projetos (Nome Projeto, Data Início, Data Fim)
       localProjects = normalize(projectsRaw, 'projetos')
         .filter(p => clean(p.projeto || p.nome));
+
+      localRequirements = normalize(requirementsRaw, 'requisitos')
+        .filter(r => clean(r.projeto) && clean(r.requisito));
 
       renderAll();
       updateStatus('Ligado', 'green');
@@ -718,6 +779,7 @@
     if (currentView === 'board') renderBoard();
     else renderGantt();
     renderLists();
+    renderRequirementsList();
   }
 
   // ===== Board =====
@@ -1034,9 +1096,13 @@
   function populateSelects() {
     const uSel = document.getElementById('fUser');
     const pSel = document.getElementById('fProject');
+    const rProjSel = document.getElementById('rProject');
+    const rProjViewSel = document.getElementById('rProjectView');
 
     uSel.innerHTML = '<option value="" class="bg-[#111] text-white">Responsável...</option>';
     pSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecione o Projeto...</option>';
+    rProjSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecionar projeto existente...</option>';
+    rProjViewSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecionar projeto para ver requisitos...</option>';
 
     dedupeStrings(localTeam.map(m => m.nome || m.responsavel || (m._raw ? Object.values(m._raw)[0] : '')))
       .forEach(name => {
@@ -1053,7 +1119,112 @@
         opt.style.backgroundColor = '#111';
         opt.style.color = '#fff';
         pSel.add(opt);
+
+        const reqOpt = new Option(name, name);
+        reqOpt.style.backgroundColor = '#111';
+        reqOpt.style.color = '#fff';
+        rProjSel.add(reqOpt);
+
+        const viewOpt = new Option(name, name);
+        viewOpt.style.backgroundColor = '#111';
+        viewOpt.style.color = '#fff';
+        rProjViewSel.add(viewOpt);
       });
+
+    const selectedViewProject = clean(rProjViewSel.dataset.selected || '');
+    if (selectedViewProject) {
+      const hasOption = [...rProjViewSel.options].some(opt => clean(opt.value).toLowerCase() === selectedViewProject.toLowerCase());
+      if (hasOption) rProjViewSel.value = selectedViewProject;
+    }
+
+    renderRequirementsByProject();
+  }
+
+  function renderRequirementsByProject() {
+    const projectView = document.getElementById('requirementsProjectView');
+    const projectViewSel = document.getElementById('rProjectView');
+    if (!projectView || !projectViewSel) return;
+
+    const projectName = clean(projectViewSel.value);
+    projectViewSel.dataset.selected = projectName;
+
+    if (!projectName) {
+      projectView.innerHTML = '<div class="p-3 rounded-xl bg-white/5 text-[11px] text-white/45">Seleciona um projeto para ver os requisitos associados.</div>';
+      return;
+    }
+
+    const reqs = localRequirements
+      .filter(r => clean(r.projeto).toLowerCase() === projectName.toLowerCase())
+      .map(r => clean(r.requisito))
+      .filter(Boolean);
+
+    if (!reqs.length) {
+      projectView.innerHTML = `<div class="p-3 rounded-xl bg-white/5 text-[11px] text-white/45">Sem requisitos registados para <span class="font-bold text-white/70">${projectName}</span>.</div>`;
+      return;
+    }
+
+    projectView.innerHTML = `
+      <div class="p-3 rounded-xl bg-white/5">
+        <div class="font-bold text-sm text-[#51b8ea] mb-2">${projectName}</div>
+        <ul class="space-y-1 text-xs text-white/80">
+          ${reqs.map(req => `<li class="flex items-start gap-2"><span class="text-[#51b8ea]">•</span><span>${req}</span></li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderRequirementsList() {
+    const reqList = document.getElementById('requirementsList');
+    if (!reqList) return;
+
+    reqList.classList.remove('hidden');
+
+    reqList.classList.add('hidden');
+    reqList.innerHTML = '';
+  }
+
+  function renderPendingRequirements() {
+    const pendingList = document.getElementById('rPendingList');
+    if (!pendingList) return;
+
+    if (!pendingRequirements.length) {
+      pendingList.innerHTML = '<div class="p-3 rounded-xl bg-white/5 text-[11px] text-white/45">Sem requisitos adicionados.</div>';
+      return;
+    }
+
+    pendingList.innerHTML = pendingRequirements.map((req, idx) => `
+      <div class="p-2 rounded-xl bg-white/5 text-xs flex items-center justify-between gap-2">
+        <span class="text-white/85">${req}</span>
+        <button type="button" onclick="removePendingRequirement(${idx})" class="text-[10px] font-black px-2 py-1 rounded-lg bg-red-500/20 text-red-300">Remover</button>
+      </div>
+    `).join('');
+  }
+
+  function addPendingRequirement() {
+    const input = document.getElementById('rRequirement');
+    const requirement = clean(input.value);
+    if (!requirement) return;
+
+    const exists = pendingRequirements.some(r => clean(r).toLowerCase() === requirement.toLowerCase());
+    if (exists) {
+      input.value = '';
+      return;
+    }
+
+    pendingRequirements.push(requirement);
+    input.value = '';
+    renderPendingRequirements();
+  }
+
+  function removePendingRequirement(index) {
+    pendingRequirements = pendingRequirements.filter((_, idx) => idx !== index);
+    renderPendingRequirements();
+  }
+
+  function resetRequirementsForm() {
+    document.getElementById('requirementsForm').reset();
+    pendingRequirements = [];
+    renderPendingRequirements();
   }
 
   function renderLists() {
@@ -1220,30 +1391,35 @@
       milestoneprazo: document.getElementById('fMilestoneDate').value
     };
 
-    const result = await sendToCloud(isEdit ? 'update' : 'add', data, id, 'Tarefas');
-    if (!result.ok) {
-      alert(`Não foi possível guardar no Sheets: ${result.error || 'erro desconhecido'}`);
-      return;
-    }
+    setSavingState(true, 'A gravar tarefa...');
+    try {
+      const result = await sendToCloud(isEdit ? 'update' : 'add', data, id, 'Tarefas');
+      if (!result.ok) {
+        alert(`Não foi possível guardar no Sheets: ${result.error || 'erro desconhecido'}`);
+        return;
+      }
 
-    await fetchData();
+      await fetchData();
 
-    const savedTask = localTasks.find(x => clean(x.id) === clean(id));
-    if (!savedTask) {
-      alert('Tarefa guardada, mas não foi possível confirmar a leitura após sincronização.');
-      return;
-    }
+      const savedTask = localTasks.find(x => clean(x.id) === clean(id));
+      if (!savedTask) {
+        alert('Tarefa guardada, mas não foi possível confirmar a leitura após sincronização.');
+        return;
+      }
 
-    const savedStartIso = savedTask.inicio ? toISODate_(savedTask.inicio) : '';
-    if (startDateIso && savedStartIso !== startDateIso) {
-      alert(`A Data Início não foi atualizada no Sheets. Esperado: ${startDateIso}, recebido: ${savedStartIso || 'vazio'}.`);
-      return;
+      const savedStartIso = savedTask.inicio ? toISODate_(savedTask.inicio) : '';
+      if (startDateIso && savedStartIso !== startDateIso) {
+        alert(`A Data Início não foi atualizada no Sheets. Esperado: ${startDateIso}, recebido: ${savedStartIso || 'vazio'}.`);
+        return;
+      }
+    } finally {
+      setSavingState(false);
     }
   };
 
   // ✅ Projetos guardam no separador "Projetos":
   // ID | Nome Projeto | Data Início | Data Fim | Status
-  document.getElementById('projectForm').onsubmit = (e) => {
+  document.getElementById('projectForm').onsubmit = async (e) => {
     e.preventDefault();
 
     const projectId = clean(document.getElementById('pId').value);
@@ -1287,14 +1463,23 @@
     renderAll();
 
     // cloud (coluna B -> "Nome Projeto")
-    sendToCloud(isEdit ? 'update' : 'add', {
-      "Nome Projeto": nomeProjeto,
-      "Data Início": pStart,
-      "Data Fim": pEnd,
-      "Status": isEdit
-        ? (isProjectArchived(localProjects.find(p => clean(p.id) === pid)) ? 'Arquivado' : 'Ativo')
-        : 'Ativo'
-    }, pid, 'Projetos');
+    setSavingState(true, 'A gravar projeto...');
+    try {
+      const result = await sendToCloud(isEdit ? 'update' : 'add', {
+        "Nome Projeto": nomeProjeto,
+        "Data Início": pStart,
+        "Data Fim": pEnd,
+        "Status": isEdit
+          ? (isProjectArchived(localProjects.find(p => clean(p.id) === pid)) ? 'Arquivado' : 'Ativo')
+          : 'Ativo'
+      }, pid, 'Projetos');
+
+      if (!result.ok) {
+        alert(`Não foi possível guardar projeto no Sheets: ${result.error || 'erro desconhecido'}`);
+      }
+    } finally {
+      setSavingState(false);
+    }
 
     resetProjectForm();
   };
@@ -1320,7 +1505,7 @@
     document.getElementById('projectCancelEditBtn').classList.add('hidden');
   }
 
-  document.getElementById('teamForm').onsubmit = (e) => {
+  document.getElementById('teamForm').onsubmit = async (e) => {
     e.preventDefault();
     const name = clean(document.getElementById('mName').value);
     const role = clean(document.getElementById('mRole').value);
@@ -1337,10 +1522,73 @@
     document.getElementById('mEmail').value = '';
     renderAll();
 
-    sendToCloud('add', { "Nome": name, "Cargo": role, "Email": email }, memberId, 'Equipa');
+    setSavingState(true, 'A gravar colaborador...');
+    try {
+      const result = await sendToCloud('add', { "Nome": name, "Cargo": role, "Email": email }, memberId, 'Equipa');
+      if (!result.ok) {
+        alert(`Não foi possível guardar colaborador no Sheets: ${result.error || 'erro desconhecido'}`);
+      }
+    } finally {
+      setSavingState(false);
+    }
   };
 
-  function toggleProjectArchive(projectId) {
+  document.getElementById('rAddBtn').onclick = addPendingRequirement;
+  document.getElementById('rProjectView').addEventListener('change', renderRequirementsByProject);
+  document.getElementById('rRequirement').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    addPendingRequirement();
+  });
+
+  document.getElementById('requirementsForm').onsubmit = async (e) => {
+    e.preventDefault();
+
+    const projectName = clean(document.getElementById('rProject').value);
+
+    if (!projectName) {
+      alert('Seleciona um projeto existente.');
+      return;
+    }
+
+    const typedRequirement = clean(document.getElementById('rRequirement').value);
+    if (typedRequirement) {
+      const exists = pendingRequirements.some(r => clean(r).toLowerCase() === typedRequirement.toLowerCase());
+      if (!exists) pendingRequirements.push(typedRequirement);
+    }
+
+    const requirements = [...pendingRequirements];
+
+    if (!requirements.length) {
+      alert('Adiciona pelo menos um requisito.');
+      return;
+    }
+
+    setSavingState(true, 'A gravar requisitos...');
+    try {
+      const now = Date.now();
+      for (let i = 0; i < requirements.length; i++) {
+        const reqId = `${now}_${i}`;
+        const requisito = requirements[i];
+
+        localRequirements.push({ id: reqId, projeto: projectName, requisito });
+        const result = await sendToCloud('add', { "Projeto": projectName, "Requisito": requisito }, reqId, 'Requisitos');
+        if (!result.ok) {
+          alert(`Não foi possível guardar requisitos no Sheets: ${result.error || 'erro desconhecido'}`);
+          return;
+        }
+      }
+
+      recentRequirementProjects.add(projectName.toLowerCase());
+
+      renderAll();
+      resetRequirementsForm();
+    } finally {
+      setSavingState(false);
+    }
+  };
+
+  async function toggleProjectArchive(projectId) {
     const idx = localProjects.findIndex(p => clean(p.id) === clean(projectId));
     if (idx < 0) return;
 
@@ -1350,11 +1598,19 @@
     localProjects[idx].arquivado = nextArchived ? 'Sim' : 'Não';
 
     renderAll();
-    sendToCloud('update', { "Status": nextArchived ? 'Arquivado' : 'Ativo' }, projectId, 'Projetos');
+    setSavingState(true, 'A gravar estado do projeto...');
+    try {
+      const result = await sendToCloud('update', { "Status": nextArchived ? 'Arquivado' : 'Ativo' }, projectId, 'Projetos');
+      if (!result.ok) {
+        alert(`Não foi possível atualizar estado do projeto: ${result.error || 'erro desconhecido'}`);
+      }
+    } finally {
+      setSavingState(false);
+    }
   }
 
   // ===== Delete tarefa =====
-  function deleteTask() {
+  async function deleteTask() {
     const id = document.getElementById('fId').value;
     if (!id) return;
 
@@ -1365,7 +1621,15 @@
     renderAll();
     toggleModal('taskModal', false);
 
-    sendToCloud('delete', {}, id, 'Tarefas');
+    setSavingState(true, 'A eliminar tarefa...');
+    try {
+      const result = await sendToCloud('delete', {}, id, 'Tarefas');
+      if (!result.ok) {
+        alert(`Não foi possível eliminar tarefa no Sheets: ${result.error || 'erro desconhecido'}`);
+      }
+    } finally {
+      setSavingState(false);
+    }
   }
 
   // ===== Cloud =====
@@ -1393,9 +1657,34 @@
   }
 
   // ===== UI =====
+  function setSavingState(isSaving, text = 'A gravar...') {
+    const overlay = document.getElementById('savingOverlay');
+    const savingText = document.getElementById('savingText');
+    if (!overlay || !savingText) return;
+
+    if (isSaving) {
+      savingRequests += 1;
+      savingText.innerText = text;
+      overlay.style.display = 'flex';
+      return;
+    }
+
+    savingRequests = Math.max(0, savingRequests - 1);
+    if (savingRequests === 0) {
+      savingText.innerText = 'A gravar...';
+      overlay.style.display = 'none';
+    }
+  }
+
   function toggleModal(id, show) {
     document.getElementById(id).style.display = show ? 'flex' : 'none';
     if (id === 'projectModal' && !show) resetProjectForm();
+    if (id === 'requirementsModal' && !show) {
+      resetRequirementsForm();
+      recentRequirementProjects = new Set();
+      renderRequirementsList();
+    }
+    if (id === 'requirementsModal' && show) renderPendingRequirements();
   }
 
   function updateStatus(text, colour) {
