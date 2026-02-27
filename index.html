@@ -905,9 +905,10 @@
     const today = dayStart_(new Date());
     const todayOffset = diffDays_(globalStart, today);
     if (todayOffset >= 0 && todayOffset <= totalDays) {
+      const todayLabel = today.toLocaleDateString('pt-PT');
       const todayBadge = document.createElement('div');
       todayBadge.className = 'gantt-today-badge';
-      todayBadge.innerHTML = `<span class="gantt-today-dot"></span> Hoje`;
+      todayBadge.innerHTML = `<span class="gantt-today-dot"></span> Hoje • ${todayLabel}`;
       timeline.appendChild(todayBadge);
 
       const todayLine = document.createElement('div');
