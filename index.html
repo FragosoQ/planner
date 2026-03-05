@@ -477,12 +477,17 @@
           class="flex-1 bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold hidden">
           Eliminar
         </button>
-
-        <button type="submit"
-          class="flex-1 gradient-btn py-4 rounded-xl font-bold shadow-lg shadow-[#004aad]/20">
-          Guardar Tarefa
-        </button>
       </div>
+
+      <div class="space-y-1 mt-4">
+        <label class="text-[10px] uppercase font-bold text-white/40">Observação</label>
+        <textarea id="fObservation" rows="3" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#51b8ea]"></textarea>
+      </div>
+
+      <button type="submit"
+        class="w-full gradient-btn py-4 rounded-xl font-bold shadow-lg shadow-[#004aad]/20 mt-2">
+        Guardar Tarefa
+      </button>
     </form>
   </div>
 </div>
@@ -786,7 +791,7 @@
 
       // ✅ Projetos: fonte oficial é o separador Projetos (Nome Projeto, Data Início, Data Fim)
       localProjects = normalize(projectsRaw, 'projetos')
-        .filter(p => clean(p.projeto || p.nome));
+        .filter(p => clean(p.projeto || p.nome)).filter(Boolean);
 
       localRequirements = normalize(requirementsRaw, 'requisitos')
         .filter(r => clean(r.projeto) && clean(r.requisito));
@@ -1425,7 +1430,8 @@
       datadeinicio: startDatePt,
       prazo: document.getElementById('fDeadline').value,
       milestone: document.getElementById('fMilestone').value,
-      milestoneprazo: document.getElementById('fMilestoneDate').value
+      milestoneprazo: document.getElementById('fMilestoneDate').value,
+      observacao: document.getElementById('fObservation').value
     };
 
     setSavingState(true, 'A gravar tarefa...');
