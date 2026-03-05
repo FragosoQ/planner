@@ -13,12 +13,12 @@
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
       background: #0a0a0a;
-      background-image: radial-gradient(circle at 50% 50%, #1a3a5a 0%, #0a0a0a 100%);
+      background-image: radial-gradient(circle at 50% 50%, #565a5e 0%, #0a0a0a 80%, #0a0a0a 100%);
       min-height: 100vh;
     }
 
     .glass-panel {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.83);
       backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
@@ -49,14 +49,14 @@
       min-height: 550px;
     }
     .gantt-sidebar {
-      background: rgba(255,255,255,0.05);
-      border-right: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0, 0, 0, 0.74);
+      border-right: 1px solid rgba(255,255,255,0.0); /* sem borda */
     }
     .gantt-sidebar-header {
       height: var(--gantt-timeline-height, 42px);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      background: rgba(0,0,0,0.55);
-      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.0); /* sem borda */
+      background: rgba(0, 0, 0, 0.74); /* totalmente transparente */
+      backdrop-filter: none;
     }
     .gantt-lane-label {
       height: 120px;
@@ -65,11 +65,22 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      color: rgba(255,255,255,0.92);
+      color: rgba(233, 7, 7, 0.1);
+  }
+
+  .gantt-lane-label .gantt-label-dates {
+    color: #fff !important;
+  }
+      }
+
+      /* Força a cor preta para a data do ticket no sidebar */
+      .gantt-lane-label .ticket-date {
+        color: #ffffff !important;
+      }
     }
 
     .gantt-main {
-      background: rgba(0,0,0,0.2);
+      background: rgba(19, 99, 99, 0.685);
       overflow-x: auto;
       overflow-y: hidden;
       position: relative;
@@ -116,7 +127,7 @@
       min-width: 140px;
       overflow: hidden;
       box-shadow: 0 8px 20px rgba(0,0,0,0.22);
-      background: #ffffff;
+      background: #e4e0e0;
       color: #111827;
       border-color: rgba(17, 24, 39, 0.15);
     }
@@ -150,6 +161,7 @@
       font-weight: 700;
       opacity: 0.95;
       text-shadow: none;
+        color: #fcfcfc !important;
     }
 
     .flag-filled svg,
@@ -192,7 +204,7 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      background: rgba(0,0,0,0.55);
+      background: rgb(0, 0, 0);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
@@ -320,6 +332,9 @@
       <button onclick="toggleModal('teamModal', true)" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="Gerir Equipa">
         <i data-lucide="users" size="20"></i>
       </button>
+        <a href="https://docs.google.com/spreadsheets/d/1aOj40a_F6wdimjvXRK68QH_h795iy9FcTROO77DZmBk/edit?usp=sharing" target="_blank" rel="noopener" class="gradient-btn px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm shadow-lg shadow-[#004aad]/20" title="Abrir Sheets">
+          <i data-lucide="file-spreadsheet" size="18"></i> <span class="hidden md:inline">Sheets Original</span>
+        </a>
       <button onclick="openCreateModal()" class="gradient-btn px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm shadow-lg shadow-[#004aad]/20">
         <i data-lucide="plus-circle" size="18"></i> <span class="hidden md:inline">Nova Tarefa</span>
       </button>
@@ -405,6 +420,16 @@
           <select id="fUser" required class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-[#51b8ea] outline-none">
             <option value="" class="bg-[#111] text-white">Responsável...</option>
           </select>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-[10px] uppercase font-bold text-white/40">Membros da Equipa</label>
+          <div class="flex gap-2">
+            <input id="fTeamInput" list="teamListOptions" placeholder="Adicionar membro..." class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#51b8ea]">
+            <datalist id="teamListOptions"></datalist>
+            <button type="button" id="addTeamMemberBtn" class="px-4 py-2 rounded-xl font-bold border border-white/15 bg-white/5">Adicionar</button>
+          </div>
+          <div id="fTeamList" class="flex flex-wrap gap-2 mt-2"></div>
         </div>
 
         <div class="space-y-1">
@@ -977,7 +1002,7 @@
       label.style.height = laneHeight + 'px';
       label.innerHTML = `
         <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
-        <div class="h-1 w-8 bg-white/20 rounded"></div>
+        <div class="h-1 w-8 bg-black/20 rounded"></div>
         <div class="mt-2 text-[10px] font-bold text-white/100">
           ${pS ? pS.toLocaleDateString('pt-PT') : '—'} → ${pE ? pE.toLocaleDateString('pt-PT') : '—'}
         </div>
@@ -1021,12 +1046,12 @@
       const durationDays = (spanStart && spanEnd) ? Math.max(1, diffDays_(spanStart, spanEnd) + 1) : null;
       const durationLabel = durationDays ? `${durationDays} dia(s)` : '—';
       label.innerHTML = `
-        <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
-        <div class="h-1 w-8 bg-white/20 rounded"></div>
-        <div class="mt-2 text-[10px] font-bold text-white/35">
-          ${spanStart ? spanStart.toLocaleDateString('pt-PT') : '—'} → ${spanEnd ? spanEnd.toLocaleDateString('pt-PT') : '—'}
-        </div>
-        <div class="text-[10px] font-black text-[#51b8ea]/80 mt-1">Duração: ${durationLabel}</div>
+          <span class="text-[#51b8ea] font-black text-sm uppercase truncate mb-1">${projName}</span>
+          <div class="h-1 w-8 bg-white/20 rounded"></div>
+          <div class="mt-2 text-[10px] font-bold text-white/35">
+            <span style="color:#fff">${spanStart ? spanStart.toLocaleDateString('pt-PT') : '—'} → ${spanEnd ? spanEnd.toLocaleDateString('pt-PT') : '—'}</span>
+          </div>
+          <div class="text-[10px] font-black text-[#51b8ea]/80 mt-1">Duração: ${durationLabel}</div>
       `;
 
       // Milestones (por tarefa)
@@ -1105,13 +1130,24 @@
     rProjSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecionar projeto existente...</option>';
     rProjViewSel.innerHTML = '<option value="" class="bg-[#111] text-white">Selecionar projeto para ver requisitos...</option>';
 
-    dedupeStrings(localTeam.map(m => m.nome || m.responsavel || (m._raw ? Object.values(m._raw)[0] : '')))
-      .forEach(name => {
-        const opt = new Option(name, name);
-        opt.style.backgroundColor = '#111';
-        opt.style.color = '#fff';
-        uSel.add(opt);
+    const teamNames = dedupeStrings(localTeam.map(m => m.nome || m.responsavel || (m._raw ? Object.values(m._raw)[0] : '')));
+    teamNames.forEach(name => {
+      const opt = new Option(name, name);
+      opt.style.backgroundColor = '#111';
+      opt.style.color = '#fff';
+      uSel.add(opt);
+    });
+
+    // Preencher datalist de membros da equipa
+    const teamListOptions = document.getElementById('teamListOptions');
+    if (teamListOptions) {
+      teamListOptions.innerHTML = '';
+      teamNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        teamListOptions.appendChild(opt);
       });
+    }
 
     // ✅ opções vêm do separador Projetos -> Nome Projeto
     dedupeStrings(localProjects.filter(p => !isProjectArchived(p)).map(p => p.projeto || p.nome))
