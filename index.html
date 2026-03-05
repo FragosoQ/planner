@@ -1810,10 +1810,13 @@ function addObservation() {
   // Enviar para o Sheets
   const id = document.getElementById('fId').value || Date.now().toString();
   const selectedProject = document.getElementById('fProject').value;
+  // Captura o nome da tarefa associada
+  const tarefa = document.getElementById('fTitle').value;
   sendToCloud('add', {
     id,
     projeto: selectedProject,
-    observacao: text
+    observacao: text,
+    tarefa: tarefa
   }, id + '_' + Date.now(), 'Observações');
 }
 
