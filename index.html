@@ -8,6 +8,12 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
+    /* Garante que todo o texto dos cards (barras) do Lanes por Projeto (Gantt) fique a preto */
+    #view-gantt .gantt-bar,
+    #view-gantt .gantt-bar * {
+      color: #111 !important;
+      text-shadow: none !important;
+    }
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
     body {
@@ -24,7 +30,7 @@
     }
 
     .task-card {
-      background: white;
+      background: rgb(255, 253, 253);
       border-left: 4px solid #004aad;
       color: #1a1a1a;
       transition: all 0.2s ease;
@@ -71,22 +77,32 @@
   .gantt-lane-label .gantt-label-dates {
     color: #fff !important;
   }
-      }
+      
 
       /* Força a cor preta para a data do ticket no sidebar */
       .gantt-lane-label .ticket-date {
         color: #ffffff !important;
       }
-    }
+    
 
     .gantt-main {
       background: rgba(19, 99, 99, 0.685);
-      overflow-x: auto;
+      overflow-x: scroll;
       overflow-y: hidden;
       position: relative;
       scrollbar-width: thin;
       scrollbar-color: rgba(81,184,234,0.75) rgba(255,255,255,0.08);
+      min-height: 120px; /* Garante espaço para a barra de rolagem */
+      box-sizing: border-box;
+      /* Força a barra a aparecer sempre */
+      &::-webkit-scrollbar {
+        height: 10px;
+      }
+      &::-webkit-scrollbar-thumb {
+        min-width: 40px;
+      }
     }
+    
     .gantt-main::-webkit-scrollbar {
       height: 10px;
     }
@@ -180,6 +196,12 @@
     }
 
     .milestone-badge {
+/* Garante que todo o texto dos cards (barras) do Lanes por Projeto (Gantt) fique a preto */
+#view-gantt .gantt-bar,
+#view-gantt .gantt-bar * {
+  color: #111 !important;
+  text-shadow: none !important;
+}
       background: #f59e0b;
       color: black;
       font-size: 9px;
