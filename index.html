@@ -481,7 +481,11 @@
 
       <div class="space-y-1 mt-4">
         <label class="text-[10px] uppercase font-bold text-white/40">Observação</label>
-        <textarea id="fObservation" rows="3" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#51b8ea]"></textarea>
+        <div class="flex gap-2">
+          <textarea id="fObservation" rows="2" class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#51b8ea]"></textarea>
+          <button type="button" id="addObservationBtn" class="px-4 py-2 rounded-xl font-bold border border-white/15 bg-white/5">+add</button>
+        </div>
+        <div id="observationList" class="mt-2 flex flex-col gap-2"></div>
       </div>
 
       <button type="submit"
@@ -1442,6 +1446,16 @@
         return;
       }
 
+      // Adicionar observação ao separador Observações
+      const obsText = document.getElementById('fObservation').value.trim();
+      if (obsText) {
+        await sendToCloud('add', {
+          id,
+          projeto: selectedProject,
+          observacao: obsText
+        }, id + '_' + Date.now(), 'Observações');
+      }
+
       await fetchData();
 
       const savedTask = localTasks.find(x => clean(x.id) === clean(id));
@@ -1746,6 +1760,50 @@
   });
 
   window.onload = fetchData;
+
+// Observações: lógica para adicionar e listar
+let currentObservations = [];
+
+const addObsBtn = document.getElementById('addObservationBtn');
+const obsTextarea = document.getElementById('fObservation');
+const obsListDiv = document.getElementById('observationList');
+
+function renderObservationList() {
+  if (!obsListDiv) return;
+  obsListDiv.innerHTML = '';
+  currentObservations.forEach((obs, idx) => {
+    const item = document.createElement('div');
+    item.className = 'bg-white/10 rounded-lg px-3 py-2 text-xs text-white flex justify-between items-center';
+    item.innerHTML = `<span>${obs}</span> <button type='button' class='text-red-400 ml-2' onclick='removeObservation(${idx})'>&times;</button>`;
+    obsListDiv.appendChild(item);
+  });
+}
+
+function addObservation() {
+  const text = (obsTextarea?.value || '').trim();
+  if (!text) return;
+  currentObservations.push(text);
+  renderObservationList();
+  obsTextarea.value = '';
+  // Enviar para o Sheets
+  const id = document.getElementById('fId').value || Date.now().toString();
+  const selectedProject = document.getElementById('fProject').value;
+  sendToCloud('add', {
+    id,
+    projeto: selectedProject,
+    observacao: text
+  }, id + '_' + Date.now(), 'Observações');
+}
+
+function removeObservation(idx) {
+  currentObservations = currentObservations.filter((_, i) => i !== idx);
+  renderObservationList();
+}
+
+if (addObsBtn) addObsBtn.onclick = addObservation;
+if (obsTextarea) obsTextarea.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addObservation(); }});
+
+
 </script>
 
 </body>
