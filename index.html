@@ -372,6 +372,9 @@
     <button onclick="switchView('gantt')" id="btn-gantt" class="pb-3 px-2 font-bold text-sm transition-all text-white/40 hover:text-white flex items-center gap-2">
       <i data-lucide="trello" size="16"></i> Lanes por Projeto
     </button>
+    <button onclick="switchView('observations')" id="btn-observations" class="pb-3 px-2 font-bold text-sm transition-all text-white/40 hover:text-white flex items-center gap-2">
+      <i data-lucide="eye" size="16"></i> Observações
+    </button>
   </div>
 
   <div id="statusIndicator" class="mb-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/30">
@@ -409,6 +412,13 @@
     <div class="gantt-wrapper glass-panel">
       <div id="gantt-labels" class="gantt-sidebar"></div>
       <div id="gantt-lanes" class="gantt-main"></div>
+    </div>
+  </div>
+
+  <div id="view-observations" class="hidden opacity-0 transition-opacity duration-500">
+    <div class="glass-panel p-6 rounded-2xl">
+      <h2 class="font-black text-lg uppercase tracking-[0.2em] text-[#51b8ea] mb-4">Observações</h2>
+      <div id="observationsList" class="space-y-2"></div>
     </div>
   </div>
 </main>
@@ -508,6 +518,11 @@
           <button type="button" id="addObservationBtn" class="px-4 py-2 rounded-xl font-bold border border-white/15 bg-white/5">+add</button>
         </div>
         <div id="observationList" class="mt-2 flex flex-col gap-2"></div>
+      </div>
+
+      <div id="taskObservationsSection" class="hidden mt-4">
+        <label class="text-[10px] uppercase font-bold text-white/40">Observações desta tarefa</label>
+        <div id="taskObservationsList" class="mt-2 flex flex-col gap-2 max-h-48 overflow-y-auto scroll-hidden"></div>
       </div>
 
       <button type="submit"
@@ -719,7 +734,7 @@
         if (key === 'id') { n.id = clean(val); continue; }
 
         if (kind === 'tarefas') {
-          // Tarefas: coluna B "Projeto" será alimentada pelo dropdown
+          // ...existing code...
           if (key === 'projeto') n.projeto = clean(val);
           else if (key === 'tarefa' || key === 'titulo') n.titulo = clean(val);
           else if (key === 'status') n.status = clean(val);
@@ -734,6 +749,7 @@
         }
 
         if (kind === 'equipa') {
+          // ...existing code...
           if (key === 'nome' || key === 'responsavel' || key === 'colaborador') {
             const name = clean(val);
             n.nome = name;
@@ -742,7 +758,7 @@
         }
 
         if (kind === 'projetos') {
-          // Projetos: headers -> ID | Nome Projeto | Data Início | Data Fim | Status
+          // ...existing code...
           if (key === 'nomeprojeto' || key === 'projeto' || key === 'nome' || key === 'titulo') {
             const name = clean(val);
             n.projeto = name;
@@ -766,11 +782,28 @@
         }
 
         if (kind === 'requisitos') {
+          // ...existing code...
           if (key === 'projeto' || key === 'nomeprojeto' || key === 'nome') {
             n.projeto = clean(val);
           } else if (key === 'requisito' || key === 'requisitos' || key === 'descricao') {
             n.requisito = clean(val);
           } else n[key] = val;
+        }
+
+        // Adiciona suporte para Observações
+        if (kind === 'observacoes') {
+          if (key === 'projeto') n.projeto = clean(val);
+          else if (key === 'observacao') n.observacao = clean(val);
+          else if (key === 'tarefa') n.tarefa = clean(val);
+          else if (key === 'status') {
+            const st = clean(val).toLowerCase();
+            if (["em curso", "concluído", "concluido", "aberto"].includes(st)) {
+              n.status = st === "concluido" ? "concluído" : st;
+            } else {
+              n.status = "aberto";
+            }
+          }
+          else n[key] = val;
         }
       }
 
@@ -1392,9 +1425,16 @@
     currentView = v;
     document.getElementById('view-board').classList.toggle('hidden', v !== 'board');
     document.getElementById('view-gantt').classList.toggle('hidden', v !== 'gantt');
+    document.getElementById('view-observations').classList.toggle('hidden', v !== 'observations');
     document.getElementById('btn-board').classList.toggle('tab-active', v === 'board');
     document.getElementById('btn-gantt').classList.toggle('tab-active', v === 'gantt');
-    renderAll();
+    document.getElementById('btn-observations').classList.toggle('tab-active', v === 'observations');
+    // Reset opacity for inactive tabs
+    document.getElementById('view-board').style.opacity = v === 'board' ? '1' : '0';
+    document.getElementById('view-gantt').style.opacity = v === 'gantt' ? '1' : '0';
+    document.getElementById('view-observations').style.opacity = v === 'observations' ? '1' : '0';
+    if (v === 'board' || v === 'gantt') renderAll();
+    if (v === 'observations') renderObservationsView();
   }
 
   // ===== Modais =====
@@ -1405,6 +1445,9 @@
     document.getElementById('fStatusGroup').classList.add('hidden');
     document.getElementById('deleteBtn').classList.add('hidden');
     document.getElementById('fStart').value = new Date().toISOString().slice(0,10);
+    // Esconder observações no modo criação
+    document.getElementById('taskObservationsSection').classList.add('hidden');
+    document.getElementById('taskObservationsList').innerHTML = '';
     toggleModal('taskModal', true);
   }
 
@@ -1426,6 +1469,9 @@
     document.getElementById('modalTitle').innerText = 'Editar Tarefa';
     document.getElementById('fStatusGroup').classList.remove('hidden');
     document.getElementById('deleteBtn').classList.remove('hidden');
+
+    // Carregar observações desta tarefa
+    loadTaskObservations(clean(t.titulo));
 
     toggleModal('taskModal', true);
   }
@@ -1807,10 +1853,8 @@ function addObservation() {
   currentObservations.push(text);
   renderObservationList();
   obsTextarea.value = '';
-  // Enviar para o Sheets
   const id = document.getElementById('fId').value || Date.now().toString();
   const selectedProject = document.getElementById('fProject').value;
-  // Captura o nome da tarefa associada
   const tarefa = document.getElementById('fTitle').value;
   sendToCloud('add', {
     id,
@@ -1825,8 +1869,101 @@ function removeObservation(idx) {
   renderObservationList();
 }
 
+async function loadTaskObservations(taskName) {
+  const section = document.getElementById('taskObservationsSection');
+  const list = document.getElementById('taskObservationsList');
+  if (!section || !list) return;
+  section.classList.remove('hidden');
+  list.innerHTML = '<div class="text-white/30 text-[11px]">A carregar...</div>';
+  const allObs = await fetchObservations();
+  const taskObs = allObs.filter(o => clean(o.tarefa).toLowerCase() === taskName.toLowerCase());
+  if (!taskObs.length) {
+    list.innerHTML = '<div class="text-white/30 text-[11px]">Sem observações para esta tarefa.</div>';
+    return;
+  }
+  list.innerHTML = taskObs.map(obs => {
+    const texto = clean(obs.observacao) || '—';
+    const status = clean(obs.status) || '—';
+    return `<div class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white flex justify-between items-start gap-2">
+      <span class="text-white/80 whitespace-pre-wrap flex-1">${texto}</span>
+      <span class="text-[10px] font-bold text-white/40 uppercase shrink-0">${status}</span>
+    </div>`;
+  }).join('');
+}
+
 if (addObsBtn) addObsBtn.onclick = addObservation;
 if (obsTextarea) obsTextarea.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addObservation(); }});
+
+// Função para buscar todas as observações do Sheets
+async function fetchObservations() {
+  try {
+    const response = await fetch(`${SCRIPT_URL}?sheet=${encodeURIComponent('Observações')}&cache=${Date.now()}`, { redirect: 'follow' });
+    const raw = await response.json();
+    // O Apps Script já devolve chaves normalizadas (id, projeto, observacao, tarefa, status)
+    // Basta garantir que é um array
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') {
+      for (let k in raw) {
+        if (Array.isArray(raw[k])) return raw[k];
+      }
+    }
+    return [];
+  } catch (err) {
+    console.error('Erro ao buscar observações:', err);
+    return [];
+  }
+}
+
+// Renderiza a lista global de observações
+async function renderObservationsView() {
+  const container = document.getElementById('view-observations');
+  const obsList = document.getElementById('observationsList');
+  if (!obsList) return;
+  obsList.innerHTML = '<div class="text-white/45 text-xs">A carregar observações...</div>';
+  const observations = await fetchObservations();
+  if (!observations.length) {
+    obsList.innerHTML = '<div class="text-white/45 text-xs">Sem observações registadas.</div>';
+    if (container) container.style.opacity = '1';
+    return;
+  }
+  obsList.innerHTML = observations.map(obs => {
+    const obsId = clean(obs.id);
+    const tarefa = clean(obs.tarefa) || '—';
+    const projeto = clean(obs.projeto) || '—';
+    const texto = clean(obs.observacao) || '—';
+    const status = clean(obs.status).toLowerCase() || 'aberto';
+    const opts = ['Aberto', 'Em Curso', 'Finalizado'];
+    const selectHtml = `<select onchange="updateObservationStatus('${obsId}', this.value)" class="bg-white border border-black/10 rounded-lg px-2 py-1 text-[11px] font-bold text-black outline-none focus:border-[#51b8ea] cursor-pointer">
+      ${opts.map(o => `<option value="${o}" ${o.toLowerCase() === status ? 'selected' : ''} style="background:#fff;color:#000">${o}</option>`).join('')}
+    </select>`;
+    return `<div class="bg-white border border-white/10 rounded-xl p-4 text-sm flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <span class="font-black text-[#51b8ea] text-xs uppercase tracking-wider">${projeto}</span>
+        <span class="text-black/30">•</span>
+        <span class="font-bold text-black">${tarefa}</span>
+      </div>
+      <div class="text-black whitespace-pre-wrap">${texto}</div>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold text-black/50 uppercase tracking-wider">Status:</span>
+        ${selectHtml}
+      </div>
+    </div>`;
+  }).join('');
+  if (container) container.style.opacity = '1';
+}
+
+async function updateObservationStatus(obsId, newStatus) {
+  if (!obsId) return;
+  setSavingState(true, 'A atualizar status...');
+  try {
+    const result = await sendToCloud('update', { status: newStatus }, obsId, 'Observações');
+    if (!result.ok) {
+      alert('Não foi possível atualizar o status: ' + (result.error || 'erro desconhecido'));
+    }
+  } finally {
+    setSavingState(false);
+  }
+}
 
 
 </script>
